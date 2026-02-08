@@ -6,12 +6,11 @@ namespace LongAudioApp;
 
 public class PythonRunner : IDisposable
 {
-    private const string VENV_PATH = @"C:\Users\k2\venvs\longaudio";
+
     private const string SCRIPT_NAME = "fast_engine.py";
 
     private readonly string _scriptPath;
     private readonly string _pythonPath;
-    private readonly bool _useBundled;
     private Process? _currentProcess;
     private Process? _serverProcess; // Persistent engine process
     private CancellationTokenSource? _cts;
@@ -33,18 +32,30 @@ public class PythonRunner : IDisposable
         TranscriptDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LongAudioApp", "Transcripts");
         Directory.CreateDirectory(TranscriptDirectory);
 
-        var bundledPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fast_engine", "fast_engine.exe");
-        if (File.Exists(bundledPath))
+        // Priority 1: Local Venv (Created by PipInstaller)
+        var appDir = AppDomain.CurrentDomain.BaseDirectory;
+        var venvPython = Path.Combine(appDir, "fast_engine_venv", "Scripts", "python.exe");
+        
+        // Priority 2: Embedded Python (bin/python/python.exe)
+        var embeddedPython = Path.Combine(appDir, "bin", "python", "python.exe");
+
+        _scriptPath = Path.Combine(scriptDirectory, SCRIPT_NAME);
+
+        if (File.Exists(venvPython))
         {
-            _useBundled = true;
-            _pythonPath = bundledPath;
-            _scriptPath = "";
+            _pythonPath = venvPython;
+            Debug.WriteLine($"[PythonRunner] Using Venv: {_pythonPath}");
+        }
+        else if (File.Exists(embeddedPython))
+        {
+            _pythonPath = embeddedPython;
+            Debug.WriteLine($"[PythonRunner] Using Embedded: {_pythonPath}");
         }
         else
         {
-            _useBundled = false;
-            _scriptPath = Path.Combine(scriptDirectory, SCRIPT_NAME);
-            _pythonPath = Path.Combine(VENV_PATH, "Scripts", "python.exe");
+            // Fallback: System Path
+            _pythonPath = "python";
+            Debug.WriteLine("[PythonRunner] Using System Python (PATH)");
         }
     }
 
@@ -61,26 +72,17 @@ public class PythonRunner : IDisposable
             {
                 FileName = _pythonPath,
                 Arguments = BuildArgs("server"),
-                WorkingDirectory = _useBundled ? Path.GetDirectoryName(_pythonPath) : Path.GetDirectoryName(_scriptPath),
+                WorkingDirectory = Path.GetDirectoryName(_scriptPath),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
-                StandardErrorEncoding = System.Text.Encoding.UTF8 // Assume same encoding
+                StandardErrorEncoding = System.Text.Encoding.UTF8
             };
 
-            if (!_useBundled)
-            {
-                var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                startInfo.EnvironmentVariables["PATH"] = Path.Combine(VENV_PATH, "Scripts") + ";" + envPath;
-                startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
-            }
-            else
-            {
-                startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
-            }
+            startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
 
             _serverProcess = new Process { StartInfo = startInfo };
             _serverProcess.Start();
@@ -134,14 +136,7 @@ public class PythonRunner : IDisposable
 
     private string BuildArgs(string command, string args = "")
     {
-        if (_useBundled)
-        {
-            return $"{command} {args}".Trim();
-        }
-        else
-        {
-            return $"\"{_scriptPath}\" {command} {args}".Trim();
-        }
+        return $"\"{_scriptPath}\" {command} {args}".Trim();
     }
 
     private async Task SendCommandAndWaitAsync(object commandObj, string actionName)
@@ -337,7 +332,7 @@ public class PythonRunner : IDisposable
             {
                 FileName = _pythonPath,
                 Arguments = arguments,
-                WorkingDirectory = _useBundled ? Path.GetDirectoryName(_pythonPath) : Path.GetDirectoryName(_scriptPath),
+                WorkingDirectory = Path.GetDirectoryName(_scriptPath),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -346,17 +341,15 @@ public class PythonRunner : IDisposable
                 StandardErrorEncoding = System.Text.Encoding.UTF8
             };
 
-            // Add venv to PATH and force unbuffered output ONLY if not using bundled exe
-            if (!_useBundled)
+            // Ensure unbuffered output
+            psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+
+            // Add python dir to PATH
+            var pyDir = Path.GetDirectoryName(_pythonPath);
+            if (!string.IsNullOrEmpty(pyDir))
             {
-                var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                psi.EnvironmentVariables["PATH"] = Path.Combine(VENV_PATH, "Scripts") + ";" + envPath;
-                psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
-            }
-            else
-            {
-                // For bundled exe, we might not need to set PATH, but PYTHONUNBUFFERED is still good
-                psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+                 var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                 psi.EnvironmentVariables["PATH"] = pyDir + ";" + envPath;
             }
 
             _currentProcess = new Process { StartInfo = psi };

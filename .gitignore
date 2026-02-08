@@ -22,6 +22,20 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
+
+# Python ENVs
+venv/
+fast_engine_venv/
+env/
+.venv/
+
+
+# Python ENVs
+venv/
+fast_engine_venv/
+env/
+.venv/
+
 # Large Files
 *.zip
 analytics_state.json

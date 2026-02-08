@@ -1,7 +1,7 @@
 <Window x:Class="LongAudioApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TurboScribe Private" Height="700" Width="1000"
+        Title="TurboScribe Private" Height="1050" Width="1000"
         Background="{StaticResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
@@ -363,10 +363,27 @@
                                 <Button Content="💀 Force Kill" Width="100" HorizontalAlignment="Left" Margin="12,0,0,0"
                                         Style="{StaticResource AccentButton}" Click="KillEngineBtn_Click"
                                         Background="#332222" Foreground="#FF6666"
-                                        ToolTip="Forcefully terminate any stuck fast_engine.exe processes"/>
+                                        ToolTip="Force terminate all engine processes"/>
                             </StackPanel>
                         </StackPanel>
                     </GroupBox>
+
+                    <GroupBox Header="AI Libraries (Pip)" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="Install required AI libraries (faster-whisper, torch) if running from source/embedded python." 
+                                       Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            
+                            <Button x:Name="InstallLibsBtn" Content="📥 Install AI Libraries" Width="180" HorizontalAlignment="Left"
+                                    Style="{StaticResource AccentButton}" Click="InstallLibsBtn_Click" Margin="0,0,0,12"/>
+
+                            <TextBox x:Name="InstallLogBox" Height="100" Background="#0F172A" Foreground="#94A3B8" 
+                                     FontFamily="Cascadia Mono,Consolas,Courier New" FontSize="11"
+                                     IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
+                                     TextWrapping="Wrap" Padding="8" BorderThickness="0"/>
+                        </StackPanel>
+                    </GroupBox>
+
 
                     <!-- PRIVACY SETTINGS -->
                     <GroupBox Header="Privacy" BorderBrush="{StaticResource BorderBrush}" 

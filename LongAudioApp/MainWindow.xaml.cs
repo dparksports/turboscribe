@@ -227,6 +227,75 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void InstallLibsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        InstallLibsBtn.IsEnabled = false;
+        InstallLogBox.Text = "Starting installation process...\n";
+        
+        string basePython = "python";
+        var embeddedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bin", "python", "python.exe");
+        if (File.Exists(embeddedPath)) basePython = embeddedPath;
+        
+        var venvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fast_engine_venv");
+        var venvPython = Path.Combine(venvPath, "Scripts", "python.exe");
+
+        try
+        {
+            // 1. Create Venv using base python
+            if (!File.Exists(venvPython))
+            {
+                var baseInstaller = new PipInstaller(basePython);
+                InstallLogBox.AppendText($"Creating venv at {venvPath}...\n");
+                await baseInstaller.CreateVenvAsync(venvPath, log => Dispatcher.Invoke(() => InstallLogBox.AppendText(log + "\n")));
+            }
+            
+            // 2. Install Libs using VENV python
+            if (File.Exists(venvPython))
+            {
+                var venvInstaller = new PipInstaller(venvPython);
+                
+                if (!venvInstaller.IsPipInstalled())
+                {
+                    InstallLogBox.AppendText("Pip not found in venv. Installing pip...\n");
+                    await venvInstaller.InstallPipAsync(log => Dispatcher.Invoke(() => InstallLogBox.AppendText(log + "\n")));
+                }
+                
+                InstallLogBox.AppendText("Installing libraries into venv...\n");
+                
+                await venvInstaller.InstallLibrariesAsync(log => Dispatcher.Invoke(() => 
+                {
+                    InstallLogBox.AppendText(log + "\n");
+                    InstallLogBox.ScrollToEnd();
+                }));
+
+                // 3. Restart Engine to pick up new venv
+                if (_runner != null)
+                {
+                    InstallLogBox.AppendText("Reloading engine...\n");
+                    _runner.Dispose();
+                    _runner = new PythonRunner(_scriptDir);
+                    WireUpRunner();
+                    if (_appSettings.StartEngineOnLaunch) _ = _runner.StartServerAsync();
+                }
+                
+                MessageBox.Show("Installation complete! The engine has been updated to use the new environment.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                throw new Exception("Venv python executable not found after creation.");
+            }
+        }
+        catch (Exception ex)
+        {
+            InstallLogBox.AppendText($"[ERROR] {ex.Message}\n");
+            MessageBox.Show($"Installation failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            InstallLibsBtn.IsEnabled = true;
+        }
+    }
+
     private void LoadAppSettings()
     {
         try
