@@ -8,7 +8,7 @@
     <ApplicationIcon></ApplicationIcon>
     <AssemblyName>TurboScribePrivate</AssemblyName>
     <RootNamespace>LongAudioApp</RootNamespace>
-    <Version>1.3.9</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\fast_engine.py" CopyToOutputDirectory="PreserveNewest" Link="fast_engine.py" />
