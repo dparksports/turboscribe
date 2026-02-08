@@ -16,6 +16,7 @@
 - **10x Faster Generation**: Built on `faster-whisper` (CTranslate2) with CUDA acceleration to transcribe hours of audio in minutes.
 - **Batch Processing**: Point it at a folder of 1,000 meeting recordings and let it run.
 - **Smart Voice Detection**: Automatically scans directories to find files containing human speech, ignoring silence and music.
+- **Robust Noise Handling**: Works exceptionally well with **outdoor meetings** involving car noise, plane noise, lawn mowers, wind, and barking dogs.
 - **Search & Archive**: Instantly search through thousands of generated transcripts to find exactly what was said.
 
 ## ✨ Features
