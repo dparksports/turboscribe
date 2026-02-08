@@ -15,7 +15,7 @@ namespace LongAudioApp;
 /// </summary>
 public static class AnalyticsService
 {
-    private static readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient; 
     private const string Endpoint = "https://www.google-analytics.com/mp/collect";
     private const string MeasurementId = "G-B387NLSSJX";
     private const string ApiSecret = "ch411kMtTRW7z_3XEUlmiw";
@@ -24,6 +24,23 @@ public static class AnalyticsService
     private static string _clientId = "";
     private static string _sessionId = "";
     private static DateTime _lastActivity = DateTime.UtcNow;
+
+    static AnalyticsService()
+    {
+        _httpClient = new HttpClient();
+        // Set User-Agent to identify the app and OS (critical for GA4 device/OS data)
+        // Mimicking a browser-like string or a standard app string helps GA4 parse it.
+        // We use a generic Windows User-Agent for now as we know this is a specific app.
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LongAudioApp/1.0");
+        
+        // Set Accept-Language to current culture (for Location/Language demographics)
+        try
+        {
+            var culture = System.Globalization.CultureInfo.CurrentCulture.Name;
+            _httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd(culture);
+        }
+        catch { /* ignore */ }
+    }
 
     private static readonly string SettingsPath = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "analytics_state.json");
