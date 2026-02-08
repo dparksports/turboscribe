@@ -342,6 +342,7 @@
                         <StackPanel>
                             <CheckBox x:Name="StartEngineCheck" Content="Start Engine Logic on App Launch (Requires Restart)" 
                                       IsChecked="False" Checked="StartEngineCheck_Changed" Unchecked="StartEngineCheck_Changed"
+                                      Foreground="{StaticResource TextBrush}"
                                       Margin="0,0,0,12"/>
                             
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">

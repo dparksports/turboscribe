@@ -12,7 +12,7 @@
 
 ## 📥 Download
 
-**[Download TurboScribe Private v1.3.5 (Windows x64)](https://github.com/dparksports/turboscribe-private/releases/download/v1.3.5/TurboScribePrivate-v1.3.5-win-x64.zip)**  
+**[Download TurboScribe Private v1.3.6 (Windows x64)](https://github.com/dparksports/turboscribe-private/releases/download/v1.3.6/TurboScribePrivate-v1.3.6-win-x64.zip)**  
 *(Extract the zip and run `TurboScribePrivate.exe`)*
 
 ## 🔒 Why TurboScribe Private?
