@@ -13,8 +13,18 @@ MEDIA_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.wav', '.mp3', '.flac', '.m
 
 def find_media_files(directory):
     """Recursively find all media files in a directory."""
+    # Normalize bare drive letters: 'C:' -> 'C:\' (otherwise os.walk uses CWD on that drive)
+    # Note: os.path.abspath('C:') returns CWD on C:, so we check explicitly
+    if len(directory) == 2 and directory[1] == ':':
+        directory = directory + os.sep
+    elif not os.path.isabs(directory):
+        directory = os.path.abspath(directory)
+
     media_files = []
-    for root, dirs, files in os.walk(directory):
+    def _walk_error(err):
+        print(f"  [SKIP] {err}")
+
+    for root, dirs, files in os.walk(directory, onerror=_walk_error):
         for f in files:
             if os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS:
                 media_files.append(os.path.join(root, f))
@@ -354,6 +364,7 @@ def run_search_transcripts(directory, query):
     Searches all _transcript.txt files for matching text.
     """
     import re
+    directory = os.path.abspath(directory)
     query_lower = query.lower()
     query_words = query_lower.split()
 

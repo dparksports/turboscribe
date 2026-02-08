@@ -30,7 +30,9 @@ public class PythonRunner
 
     public async Task RunBatchScanAsync(string directory, bool useVad)
     {
-        var args = $"\"{_scriptPath}\" batch_scan --dir \"{directory}\"";
+        // Strip trailing backslash to prevent it escaping the closing quote on the command line
+        var safeDir = directory.TrimEnd('\\', '/');
+        var args = $"\"{_scriptPath}\" batch_scan --dir \"{safeDir}\"";
         if (!useVad) args += " --no-vad";
         await RunProcessAsync(args);
     }
@@ -44,7 +46,8 @@ public class PythonRunner
 
     public async Task RunBatchTranscribeDirAsync(string directory, bool useVad)
     {
-        var args = $"\"{_scriptPath}\" batch_transcribe_dir --dir \"{directory}\"";
+        var safeDir = directory.TrimEnd('\\', '/');
+        var args = $"\"{_scriptPath}\" batch_transcribe_dir --dir \"{safeDir}\"";
         if (!useVad) args += " --no-vad";
         await RunProcessAsync(args);
     }
@@ -64,7 +67,8 @@ public class PythonRunner
 
     public async Task RunSearchTranscriptsAsync(string directory, string query)
     {
-        var args = $"\"{_scriptPath}\" search_transcripts --dir \"{directory}\" --query \"{query}\"";
+        var safeDir = directory.TrimEnd('\\', '/');
+        var args = $"\"{_scriptPath}\" search_transcripts --dir \"{safeDir}\" --query \"{query}\"";
         await RunProcessAsync(args);
     }
 

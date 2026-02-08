@@ -248,7 +248,7 @@ public partial class MainWindow : Window
         }
 
         // Also scan the directory for any _transcript*.txt files (including versioned)
-        var dir = DirectoryBox.Text.Trim();
+        var dir = NormalizePath(DirectoryBox.Text);
         if (Directory.Exists(dir))
         {
             try
@@ -285,9 +285,19 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Normalize bare drive letters (e.g. "C:") to root paths ("C:\") so Directory.Exists and os.walk work correctly.</summary>
+    private static string NormalizePath(string path)
+    {
+        path = path.Trim();
+        // "C:" or "D:" without trailing separator refers to CWD on that drive, not the root
+        if (path.Length == 2 && char.IsLetter(path[0]) && path[1] == ':')
+            path += Path.DirectorySeparatorChar;
+        return path;
+    }
+
     private async void ScanBtn_Click(object sender, RoutedEventArgs e)
     {
-        var dir = DirectoryBox.Text.Trim();
+        var dir = NormalizePath(DirectoryBox.Text);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
         {
             MessageBox.Show("Please select a valid directory.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -324,7 +334,7 @@ public partial class MainWindow : Window
 
     private async void TranscribeAllBtn_Click(object sender, RoutedEventArgs e)
     {
-        var dir = DirectoryBox.Text.Trim();
+        var dir = NormalizePath(DirectoryBox.Text);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
         {
             MessageBox.Show("Please set a valid directory in the Scan tab first.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -449,7 +459,7 @@ public partial class MainWindow : Window
         var query = SearchBox.Text.Trim();
         if (string.IsNullOrEmpty(query)) { RefreshTranscriptList(); return; }
 
-        var dir = DirectoryBox.Text.Trim();
+        var dir = NormalizePath(DirectoryBox.Text);
         if (!Directory.Exists(dir)) return;
 
         // Local in-process search — fast, no Python needed
