@@ -1,6 +1,10 @@
 import argparse
 import torch
 from faster_whisper import WhisperModel
+import sys
+
+# Force unbuffered output for real-time UI updates
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import os
 import json
 from datetime import datetime
@@ -112,7 +116,7 @@ def run_scanner(file_path, use_vad=True):
     if segment_count == 0:
         print("[INFO] No speech detected.")
 
-def run_batch_scanner(directory, use_vad=True):
+def run_batch_scanner(directory, use_vad=True, report_path=None):
     """
     MODE 3: BATCH SCOUT
     Scans all media files in a directory for voice activity.
@@ -173,7 +177,12 @@ def run_batch_scanner(directory, use_vad=True):
             })
 
     # Write JSON report
-    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_scan_results.json")
+    if report_path is None:
+        report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_scan_results.json")
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(report_path)), exist_ok=True)
+
     report = {
         "scan_date": datetime.now().isoformat(),
         "directory": directory,
@@ -492,7 +501,7 @@ if __name__ == "__main__":
         if not directory:
             print("Error: Provide a directory with --dir or as positional argument")
             exit(1)
-        run_batch_scanner(directory, use_vad=use_vad)
+        run_batch_scanner(directory, use_vad=use_vad, report_path=args.report)
     elif args.mode == "transcribe":
         run_transcriber(args.file, args.start, args.end, output_dir=args.output_dir)
     elif args.mode == "batch_transcribe":

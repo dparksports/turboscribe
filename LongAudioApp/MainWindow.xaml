@@ -320,6 +320,22 @@
                         </StackPanel>
                     </GroupBox>
 
+                    <!-- SYSTEM SETTINGS -->
+                    <GroupBox Header="System" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="GPU Status Refresh Rate" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="GpuRefreshCombo" Width="200" HorizontalAlignment="Left"
+                                      SelectionChanged="GpuRefreshCombo_SelectionChanged">
+                                <ComboBoxItem Content="1 second (Fast)" Tag="1"/>
+                                <ComboBoxItem Content="3 seconds (Default)" Tag="3" IsSelected="True"/>
+                                <ComboBoxItem Content="5 seconds" Tag="5"/>
+                                <ComboBoxItem Content="10 seconds" Tag="10"/>
+                                <ComboBoxItem Content="Manual (Click to refresh)" Tag="0"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </GroupBox>
+
                     <!-- PRIVACY SETTINGS -->
                     <GroupBox Header="Privacy" BorderBrush="{StaticResource BorderBrush}" 
                               Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
@@ -374,7 +390,9 @@
                            Text="Ready — Select a directory and scan for voice"/>
                 <TextBlock x:Name="GpuLabel" Grid.Column="1" 
                            Foreground="{StaticResource AccentLightBrush}" FontSize="11"
-                           Text="GPU: detecting..."/>
+                           Text="GPU: detecting..."
+                           MouseLeftButtonDown="GpuLabel_MouseLeftButtonDown"
+                           Cursor="Hand" ToolTip="Click to refresh GPU status"/>
             </Grid>
         </Border>
     </Grid>

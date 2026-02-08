@@ -60,17 +60,25 @@ public partial class MainWindow : Window
     private readonly string _reportPath;
     private string? _selectedTranscriptPath;
 
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _runner?.Dispose();
+        _gpuTimer?.Stop();
+    }
+
     public MainWindow()
     {
         InitializeComponent();
 
         _scriptDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..\\..\\..\\.."));
         if (!File.Exists(Path.Combine(_scriptDir, "fast_engine.py")))
-            _scriptDir = AppDomain.CurrentDomain.BaseDirectory;
-        if (!File.Exists(Path.Combine(_scriptDir, "fast_engine.py")))
             _scriptDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".."));
 
-        _reportPath = Path.Combine(_scriptDir, "voice_scan_results.json");
+        var appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LongAudioApp");
+        Directory.CreateDirectory(appDataDir);
+        _reportPath = Path.Combine(appDataDir, "voice_scan_results.json");
+        
         _runner = new PythonRunner(_scriptDir);
 
         WireUpRunner();
@@ -78,9 +86,89 @@ public partial class MainWindow : Window
         DetectGpu();
         TryLoadExistingResults();
 
-        // Settings Init
+    // Settings Init
         AppVersionLabel.Text = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
         AnalyticsCheck.IsChecked = AnalyticsService.IsEnabled;
+
+        // Load Settings
+        LoadAppSettings();
+
+        // Initialize UI from settings
+        foreach (ComboBoxItem item in GpuRefreshCombo.Items)
+        {
+            if (item.Tag?.ToString() == _appSettings.GpuRefreshIntervalSeconds.ToString())
+            {
+                item.IsSelected = true;
+                break;
+            }
+        }
+
+        // Start GPU monitoring
+        _gpuTimer = new System.Windows.Threading.DispatcherTimer();
+        UpdateGpuTimer();
+        _gpuTimer.Tick += (s, args) => DetectGpu();
+        if (_appSettings.GpuRefreshIntervalSeconds > 0) _gpuTimer.Start();
+    }
+
+    private DispatcherTimer _gpuTimer;
+    private AppSettings _appSettings = new();
+    private readonly string _settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.json");
+
+    private void LoadAppSettings()
+    {
+        try
+        {
+            if (File.Exists(_settingsPath))
+            {
+                var json = File.ReadAllText(_settingsPath);
+                _appSettings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            }
+        }
+        catch { }
+    }
+
+    private void SaveAppSettings()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(_appSettings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_settingsPath, json);
+        }
+        catch { }
+    }
+
+    public class AppSettings
+    {
+        public int GpuRefreshIntervalSeconds { get; set; } = 3;
+    }
+
+    private void GpuRefreshCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GpuRefreshCombo.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out int seconds))
+        {
+            _appSettings.GpuRefreshIntervalSeconds = seconds;
+            SaveAppSettings();
+            UpdateGpuTimer();
+        }
+    }
+
+    private void UpdateGpuTimer()
+    {
+        if (_gpuTimer == null) return;
+        
+        _gpuTimer.Stop();
+        if (_appSettings.GpuRefreshIntervalSeconds > 0)
+        {
+            _gpuTimer.Interval = TimeSpan.FromSeconds(_appSettings.GpuRefreshIntervalSeconds);
+            _gpuTimer.Start();
+            // Trigger immediate update when switching modes
+            DetectGpu();
+        }
+    }
+
+    private void GpuLabel_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        DetectGpu();
     }
 
     private void AnalyticsCheck_Click(object sender, RoutedEventArgs e)
@@ -199,8 +287,13 @@ public partial class MainWindow : Window
 
     private bool _isScanRunning;
 
+    private bool _isCheckingGpu = false;
+
     private async void DetectGpu()
     {
+        if (_isCheckingGpu) return;
+        _isCheckingGpu = true;
+
         try
         {
             // Query for name, utilization, and memory usage
@@ -248,6 +341,10 @@ public partial class MainWindow : Window
             GpuLabel.Text = "GPU: Not detected (using CPU)";
             GpuLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
         }
+        finally
+        {
+            _isCheckingGpu = false;
+        }
     }
 
     private void TryLoadExistingResults()
@@ -280,15 +377,32 @@ public partial class MainWindow : Window
     {
         var transcripts = new List<TranscriptFileInfo>();
 
+        // 1. Search AppData Transcripts directory (primary location for new transcripts)
+        var appDataTranscripts = _runner.TranscriptDirectory;
+        if (Directory.Exists(appDataTranscripts))
+        {
+            try
+            {
+                var found = Directory.GetFiles(appDataTranscripts, "*_transcript*.txt", SearchOption.TopDirectoryOnly);
+                foreach (var f in found)
+                {
+                    var ti = new TranscriptFileInfo { FullPath = f };
+                    ti.ReadSize();
+                    transcripts.Add(ti);
+                }
+            }
+            catch { }
+        }
+
+        // 2. Look for legacy _transcript.txt files next to each scanned media file
         if (_report != null)
         {
-            // Look for _transcript.txt files next to each scanned media file
             foreach (var result in _report.Results)
             {
                 if (result.Error != null || result.Blocks.Count == 0) continue;
 
                 var basePath = Path.ChangeExtension(result.File, null) + "_transcript.txt";
-                if (File.Exists(basePath))
+                if (File.Exists(basePath) && !transcripts.Any(t => t.FullPath.Equals(basePath, StringComparison.OrdinalIgnoreCase)))
                 {
                     var ti = new TranscriptFileInfo { FullPath = basePath };
                     ti.ReadSize();
@@ -297,7 +411,7 @@ public partial class MainWindow : Window
             }
         }
 
-        // Also scan the directory for any _transcript*.txt files (including versioned)
+        // 3. Also scan the media directory for any _transcript*.txt files (including versioned)
         var dir = NormalizePath(DirectoryBox.Text);
         if (Directory.Exists(dir))
         {
@@ -362,7 +476,7 @@ public partial class MainWindow : Window
 
         bool useVad = !(NoVadCheck.IsChecked ?? false);
         AnalyticsService.TrackEvent("scan_start", new { use_vad = useVad });
-        await _runner.RunBatchScanAsync(dir, useVad);
+        await _runner.RunBatchScanAsync(dir, useVad, _reportPath);
     }
 
     private async void BatchTranscribeBtn_Click(object sender, RoutedEventArgs e)

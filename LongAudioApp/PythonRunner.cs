@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace LongAudioApp;
 
-public class PythonRunner
+public class PythonRunner : IDisposable
 {
     private const string VENV_PATH = @"C:\Users\k2\venvs\longaudio";
     private const string SCRIPT_NAME = "fast_engine.py";
@@ -57,7 +57,7 @@ public class PythonRunner
         }
     }
 
-    public async Task RunBatchScanAsync(string directory, bool useVad)
+    public async Task RunBatchScanAsync(string directory, bool useVad, string? reportPath = null)
     {
         // Strip trailing backslash to prevent it escaping the closing quote on the command line
         var safeDir = directory.TrimEnd('\\', '/');
@@ -65,6 +65,7 @@ public class PythonRunner
         if (safeDir.EndsWith("\\")) safeDir = safeDir.TrimEnd('\\');
         
         var cmdArgs = $"--dir \"{safeDir}\"";
+        if (reportPath != null) cmdArgs += $" --report \"{reportPath}\"";
         if (!useVad) cmdArgs += " --no-vad";
         
         await RunProcessAsync(BuildArgs("batch_scan", cmdArgs));
@@ -229,5 +230,12 @@ public class PythonRunner
                 ErrorOccurred?.Invoke(line);
             }
         }
+    }
+
+    public void Dispose()
+    {
+        Cancel();
+        _cts?.Dispose();
+        _currentProcess?.Dispose();
     }
 }
