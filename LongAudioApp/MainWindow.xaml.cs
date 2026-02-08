@@ -124,7 +124,7 @@ public partial class MainWindow : Window
     }
 
     private DispatcherTimer _gpuTimer;
-    private DispatcherTimer _engineCheckTimer; // Check for zombies/status
+    private DispatcherTimer? _engineCheckTimer; // Check for zombies/status
     private AppSettings _appSettings = new();
     private readonly string _settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.json");
 
