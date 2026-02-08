@@ -8,7 +8,7 @@
 
 ## 📥 Download
 
-**[⬇️ Download v1.3.1 (TurboScribe Private)](https://github.com/dparksports/mylongaudio/releases/download/v1.3.1/TurboScribePrivate-v1.3.1-win-x64.zip)** (Requires [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0))
+**[⬇️ Download v1.3.1 (TurboScribe Private)](https://github.com/dparksports/turboscribe/releases/download/v1.3.1/TurboScribePrivate-v1.3.1-win-x64.zip)** (Requires [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0))
 
 ## 🔒 Why TurboScribe Private?
 
@@ -48,8 +48,8 @@
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/dparksports/mylongaudio.git
-cd mylongaudio
+git clone https://github.com/dparksports/turboscribe.git
+cd turboscribe
 
 # 2. Create Python environment
 python -m venv longaudio
