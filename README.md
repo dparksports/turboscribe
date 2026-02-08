@@ -15,6 +15,8 @@
 **[Download TurboScribe Private v1.5.0 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v1.5.0/TurboScribePrivate-v1.5.0-win-x64.zip)**  
 *(Extract the zip and run `TurboScribePrivate.exe`)*
 
+![TurboScribe Private Screenshot](turboscribe_private_screenshot_1770581220966.png)
+
 ## 🔒 Why TurboScribe Private?
 
 - **100% Private & Offline**: Your audio files *never* leave your computer. Perfect for confidential meetings, legal interviews, and private voice notes.
