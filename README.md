@@ -2,7 +2,7 @@
 
 **Transcribe your meetings and notes locally, privately, and 10x faster than online services.**
 
-**TurboScribe Private** is a **free and open-source**, GPU-accelerated desktop tool designed for professionals who need to transcribe sensitive audio — **meetings, interviews, voice memos, and lectures** — without uploading data to the cloud.
+**TurboScribe Private** is a **free and open-source**, GPU-accelerated desktop tool designed for professionals who need to transcribe sensitive audio — **meetings, interviews, voice memos, and lectures** — without uploading data to the cloud. **(Requires NVIDIA GPU)**
 
 ![TurboScribe Private Screenshot](screenshot.png)
 
@@ -26,6 +26,7 @@
 - **Silent File Tracking** — Detects and lists metadata-only/silent files to clean up your archive.
 - **Dateset Privacy** — 100% Private & Offline.
 - **Free & Open Source** — No subscriptions, no limits, fully auditable code.
+- **System Requirements** — Requires an **NVIDIA GPU** with CUDA support.
 
 ## 🛠️ Tech Stack
 
