@@ -83,6 +83,13 @@ public static class AnalyticsService
             var payload = new
             {
                 client_id = _clientId,
+                user_properties = new
+                {
+                    country = new { value = System.Globalization.RegionInfo.CurrentRegion.TwoLetterISORegionName },
+                    language = new { value = System.Globalization.CultureInfo.CurrentCulture.Name },
+                    app_version = new { value = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown" },
+                    platform = new { value = "windows" }
+                },
                 events = new[]
                 {
                     new
