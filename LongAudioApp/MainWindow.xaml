@@ -272,15 +272,27 @@
                                 <Button x:Name="RetranscribeBtn" Content="🔄 Re-transcribe" 
                                         Style="{StaticResource AccentButton}" Margin="8,0,0,0"
                                         Click="RetranscribeBtn_Click" FontSize="11" Padding="10,4"/>
+                                <Button x:Name="CompareBtn" Content="📊 Compare Versions" 
+                                        Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                        Click="CompareBtn_Click" FontSize="11" Padding="10,4"/>
                             </StackPanel>
-                            <TextBox x:Name="TranscriptContentBox" Grid.Row="2" IsReadOnly="True"
+                            <!-- Transcript content viewer (RichTextBox for diff highlighting) -->
+                            <RichTextBox x:Name="TranscriptContentBox" Grid.Row="2" IsReadOnly="True"
                                      Background="{StaticResource SurfaceBrush}"
                                      Foreground="{StaticResource TextBrush}"
                                      BorderBrush="{StaticResource BorderBrush}"
                                      FontFamily="Cascadia Mono,Consolas,Courier New"
-                                     FontSize="12" Padding="10" TextWrapping="Wrap"
+                                     FontSize="12" Padding="10"
                                      VerticalScrollBarVisibility="Auto"
-                                     AcceptsReturn="True"/>
+                                     IsDocumentEnabled="True">
+                                <RichTextBox.Document>
+                                    <FlowDocument PageWidth="2000">
+                                        <Paragraph>
+                                            <Run Text="Select a transcript to view"/>
+                                        </Paragraph>
+                                    </FlowDocument>
+                                </RichTextBox.Document>
+                            </RichTextBox>
                         </Grid>
                     </Grid>
                 </Grid>

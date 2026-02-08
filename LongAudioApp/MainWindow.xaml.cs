@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -88,13 +91,26 @@ public partial class MainWindow : Window
                 if (File.Exists(path))
                 {
                     var current = TranscriptList.ItemsSource as List<TranscriptFileInfo> ?? new List<TranscriptFileInfo>();
-                    if (!current.Any(t => t.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+                    // If it already exists (re-transcribe), update its size
+                    var existing = current.FirstOrDefault(t => t.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        existing.ReadSize();
+                        TranscriptList.ItemsSource = current.OrderByDescending(t => t.CharCount).ToList();
+                        // Auto-select the updated transcript
+                        TranscriptList.SelectedItem = TranscriptList.Items.Cast<TranscriptFileInfo>()
+                            .FirstOrDefault(t => t.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
                     {
                         var info = new TranscriptFileInfo { FullPath = path };
                         info.ReadSize();
                         current.Add(info);
-                        TranscriptList.ItemsSource = current.OrderByDescending(t => t.CharCount).ToList();
-                        TranscribeStatusLabel.Text = $"Found {current.Count} transcript files";
+                        var sorted = current.OrderByDescending(t => t.CharCount).ToList();
+                        TranscriptList.ItemsSource = sorted;
+                        TranscribeStatusLabel.Text = $"Found {sorted.Count} transcript files";
+                        // Auto-select the new transcript
+                        TranscriptList.SelectedItem = sorted.FirstOrDefault(t => t.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase));
                     }
                 }
             }
@@ -285,6 +301,7 @@ public partial class MainWindow : Window
         ClearLog();
 
         bool useVad = !(NoVadCheck.IsChecked ?? false);
+        AnalyticsService.TrackEvent("scan_start", new { use_vad = useVad });
         await _runner.RunBatchScanAsync(dir, useVad);
     }
 
@@ -302,6 +319,7 @@ public partial class MainWindow : Window
         StatusBar.Text = "Starting batch transcription with large-v3...";
 
         await _runner.RunBatchTranscribeAsync(_reportPath);
+        AnalyticsService.TrackEvent("batch_transcribe");
     }
 
     private async void TranscribeAllBtn_Click(object sender, RoutedEventArgs e)
@@ -319,6 +337,7 @@ public partial class MainWindow : Window
         StatusBar.Text = "Transcribing all files with large-v3 (no scan)...";
 
         bool useVad = !(NoVadCheck.IsChecked ?? false);
+        AnalyticsService.TrackEvent("transcribe_all");
         await _runner.RunBatchTranscribeDirAsync(dir, useVad);
     }
 
@@ -373,16 +392,26 @@ public partial class MainWindow : Window
             try
             {
                 var content = File.ReadAllText(info.FullPath);
-                TranscriptContentBox.Text = content;
+                SetContentBoxText(content);
                 TranscriptFileLabel.Text = info.FullPath;
                 OpenInExplorerBtn.Visibility = Visibility.Visible;
-                RetranscribePanel.Visibility = info.SourceMediaPath != null 
-                    ? Visibility.Visible : Visibility.Collapsed;
-                StatusBar.Text = $"Viewing: {info.FileName}";
+
+                // Always show re-transcribe panel
+                RetranscribePanel.Visibility = Visibility.Visible;
+
+                // Show version count on Compare button
+                var versions = FindSiblingVersions(info);
+                CompareBtn.Content = versions.Count > 1 
+                    ? $"📊 Compare ({versions.Count} versions)" 
+                    : "📊 Compare Versions";
+                CompareBtn.IsEnabled = versions.Count > 1;
+
+                StatusBar.Text = $"Viewing: {info.FileName}" + 
+                    (versions.Count > 1 ? $" ({versions.Count} versions available)" : "");
             }
             catch (Exception ex)
             {
-                TranscriptContentBox.Text = $"Error reading file: {ex.Message}";
+                SetContentBoxText($"Error reading file: {ex.Message}");
             }
         }
     }
@@ -476,8 +505,115 @@ public partial class MainWindow : Window
                 sb.AppendLine($"  {snippet}");
                 sb.AppendLine();
             }
-            TranscriptContentBox.Text = sb.ToString();
+            SetContentBoxText(sb.ToString());
         }
+    }
+
+    // ===== COMPARE VERSIONS =====
+
+    private List<string> FindSiblingVersions(TranscriptFileInfo info)
+    {
+        var dir = info.FolderPath;
+        var name = Path.GetFileNameWithoutExtension(info.FullPath);
+        var idx = name.IndexOf("_transcript");
+        if (idx < 0) return new List<string> { info.FullPath };
+        var baseName = name[..idx];
+
+        try
+        {
+            return Directory.GetFiles(dir, $"{baseName}_transcript*")
+                .OrderBy(f => f)
+                .ToList();
+        }
+        catch { return new List<string> { info.FullPath }; }
+    }
+
+    private void CompareBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (TranscriptList.SelectedItem is not TranscriptFileInfo info) return;
+
+        var versions = FindSiblingVersions(info);
+        if (versions.Count < 2)
+        {
+            MessageBox.Show("Only one version exists. Re-transcribe with a different model first.",
+                "Compare", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Read all versions — strip the header line, keep just transcript lines
+        var versionData = new List<(string label, string[] lines)>();
+        foreach (var vpath in versions)
+        {
+            var fname = Path.GetFileNameWithoutExtension(vpath);
+            var label = fname.Contains("_transcript_") 
+                ? fname[(fname.IndexOf("_transcript_") + 12)..] 
+                : "default";
+            var allLines = File.ReadAllLines(vpath)
+                .Where(l => !l.StartsWith("---")).ToArray();
+            versionData.Add((label, allLines));
+        }
+
+        // Build a color-coded diff in the RichTextBox
+        var doc = new FlowDocument { PageWidth = 2000 };
+        doc.Blocks.Add(MakeParagraph(
+            $"📊 Comparing {versionData.Count} versions for: {Path.GetFileName(info.SourceMediaPath ?? info.FileName)}\n",
+            "#A78BFA", true));
+
+        // Side by side: compare first version vs each other version
+        var baseline = versionData[0];
+        for (int v = 1; v < versionData.Count; v++)
+        {
+            var compare = versionData[v];
+            doc.Blocks.Add(MakeParagraph(
+                $"\n═══ {baseline.label} vs {compare.label} ═══\n", "#F59E0B", true));
+
+            var maxLines = Math.Max(baseline.lines.Length, compare.lines.Length);
+            for (int i = 0; i < maxLines; i++)
+            {
+                var lineA = i < baseline.lines.Length ? baseline.lines[i].Trim() : "";
+                var lineB = i < compare.lines.Length ? compare.lines[i].Trim() : "";
+
+                if (lineA == lineB)
+                {
+                    // Same — dim
+                    doc.Blocks.Add(MakeParagraph($"  {lineA}", "#94A3B8", false));
+                }
+                else
+                {
+                    // Different — highlight
+                    if (!string.IsNullOrWhiteSpace(lineA))
+                        doc.Blocks.Add(MakeParagraph($"- [{baseline.label}] {lineA}", "#EF4444", false));
+                    if (!string.IsNullOrWhiteSpace(lineB))
+                        doc.Blocks.Add(MakeParagraph($"+ [{compare.label}] {lineB}", "#22C55E", false));
+                }
+            }
+        }
+
+        TranscriptContentBox.Document = doc;
+        StatusBar.Text = $"Comparing {versionData.Count} transcript versions";
+    }
+
+    // ===== HELPERS =====
+
+    private void SetContentBoxText(string text)
+    {
+        var doc = new FlowDocument { PageWidth = 2000 };
+        var para = new Paragraph(new Run(text))
+        {
+            Foreground = (SolidColorBrush)FindResource("TextBrush"),
+            FontFamily = new FontFamily("Cascadia Mono,Consolas,Courier New"),
+            FontSize = 12
+        };
+        doc.Blocks.Add(para);
+        TranscriptContentBox.Document = doc;
+    }
+
+    private static Paragraph MakeParagraph(string text, string hexColor, bool bold)
+    {
+        var color = (Color)ColorConverter.ConvertFromString(hexColor);
+        var run = new Run(text) { Foreground = new SolidColorBrush(color) };
+        if (bold) run.FontWeight = FontWeights.Bold;
+        return new Paragraph(run) { Margin = new Thickness(0, 0, 0, 1) };
     }
 
     private void AppendLog(string text)
