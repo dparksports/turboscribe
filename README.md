@@ -1,6 +1,6 @@
 # 🎙️ TurboScribe Private
 
-**Transcribe your meetings and notes locally, privately, and 10x faster than online services.**
+**Transcribe your meetings and notes locally, privately, and 10x faster than online services for free.**
 
 **TurboScribe Private** is a **free and open-source**, GPU-accelerated desktop tool designed for professionals who need to transcribe sensitive audio — **meetings, interviews, voice memos, and lectures** — without uploading data to the cloud. **(Requires NVIDIA GPU)**
 
