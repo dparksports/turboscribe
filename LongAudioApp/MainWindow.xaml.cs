@@ -77,6 +77,16 @@ public partial class MainWindow : Window
         SetupTranscriptContextMenu();
         DetectGpu();
         TryLoadExistingResults();
+
+        // Settings Init
+        AppVersionLabel.Text = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+        AnalyticsCheck.IsChecked = AnalyticsService.IsEnabled;
+    }
+
+    private void AnalyticsCheck_Click(object sender, RoutedEventArgs e)
+    {
+        AnalyticsService.IsEnabled = AnalyticsCheck.IsChecked ?? true;
+        AnalyticsService.TrackEvent("analytics_opt_changed", new { enabled = AnalyticsService.IsEnabled });
     }
 
     private int _silentCount = 0;
@@ -193,7 +203,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            var psi = new ProcessStartInfo("nvidia-smi", "--query-gpu=name --format=csv,noheader")
+            // Query for name, utilization, and memory usage
+            // output format: "NVIDIA GeForce RTX 4090, 15 %, 300 MiB / 24564 MiB"
+            var psi = new ProcessStartInfo("nvidia-smi", "--query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits")
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -202,14 +214,39 @@ public partial class MainWindow : Window
             var proc = Process.Start(psi);
             if (proc != null)
             {
-                var gpu = await proc.StandardOutput.ReadLineAsync();
+                // Reading all lines in case of multiple GPUs, taking the first one for now
+                var output = await proc.StandardOutput.ReadToEndAsync();
                 await proc.WaitForExitAsync();
-                GpuLabel.Text = $"GPU: {gpu?.Trim() ?? "Unknown"}";
+
+                if (string.IsNullOrWhiteSpace(output))
+                {
+                    GpuLabel.Text = "GPU: Not available (using CPU)";
+                    GpuLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")); // Dim
+                    return;
+                }
+
+                // Parse first line: "Name, Util, MemUsed, MemTotal"
+                var parts = output.Split('\n')[0].Split(',');
+                if (parts.Length >= 4)
+                {
+                    var name = parts[0].Trim();
+                    var util = parts[1].Trim();
+                    var memUsed = parts[2].Trim();
+                    var memTotal = parts[3].Trim();
+
+                    GpuLabel.Text = $"GPU: {name} | Load: {util}% | VRAM: {memUsed}/{memTotal} MiB";
+                    GpuLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")); // Green
+                }
+                else
+                {
+                    GpuLabel.Text = $"GPU: {parts[0].Trim()}";
+                }
             }
         }
         catch
         {
-            GpuLabel.Text = "GPU: Not detected";
+            GpuLabel.Text = "GPU: Not detected (using CPU)";
+            GpuLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
         }
     }
 

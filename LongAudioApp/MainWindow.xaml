@@ -50,9 +50,7 @@
                         <Button x:Name="BrowseBtn" Grid.Column="1" Content="Browse" 
                                 Style="{StaticResource AccentButton}" Margin="8,0,0,0"
                                 Click="BrowseBtn_Click"/>
-                        <CheckBox x:Name="NoVadCheck" Grid.Column="2" Content="No VAD (outdoor)" 
-                                  Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" 
-                                  Margin="12,0,0,0" IsChecked="True" FontSize="12"/>
+                        <!-- Checkbox moved to Settings tab -->
                     </Grid>
 
                     <!-- Scan Controls -->
@@ -302,6 +300,52 @@
                         </Grid>
                     </Grid>
                 </Grid>
+            </TabItem>
+
+            <!-- ===== SETTINGS TAB ===== -->
+            <TabItem Header="⚙ Settings">
+                <StackPanel Margin="24,20">
+                    <TextBlock Text="Application Settings" FontSize="18" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextBrush}" Margin="0,0,0,16"/>
+
+                    <!-- SCANNER SETTINGS -->
+                    <GroupBox Header="Scanner Settings" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <CheckBox x:Name="NoVadCheck" Content="No VAD (Outdoor/Noisy Mode)" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="True" Margin="0,4"/>
+                            <TextBlock Text="Disable Voice Activity Detection if your audio has loud background noise." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- PRIVACY SETTINGS -->
+                    <GroupBox Header="Privacy" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <CheckBox x:Name="AnalyticsCheck" Content="Share Anonymous Usage Data" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="True" Click="AnalyticsCheck_Click" Margin="0,4"/>
+                            <TextBlock Text="Help us improve by sending anonymous crash reports and usage statistics." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- ABOUT -->
+                    <GroupBox Header="About" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Padding="12">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,4">
+                                <TextBlock Text="Version: " Foreground="{StaticResource TextDimBrush}" FontSize="13"/>
+                                <TextBlock x:Name="AppVersionLabel" Text="1.0.0" 
+                                           Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock Text="TurboScribe Private (Bundled Edition)" 
+                                       Foreground="{StaticResource TextDimBrush}" FontSize="12" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
             </TabItem>
 
             <!-- ===== LOG TAB ===== -->

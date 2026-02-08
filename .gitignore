@@ -25,3 +25,5 @@ desktop.ini
 # Large Files
 *.zip
 analytics_state.json
+dist/
+build/

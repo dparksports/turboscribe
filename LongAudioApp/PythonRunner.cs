@@ -11,6 +11,7 @@ public class PythonRunner
 
     private readonly string _scriptPath;
     private readonly string _pythonPath;
+    private readonly bool _useBundled;
     private Process? _currentProcess;
     private CancellationTokenSource? _cts;
 
@@ -22,60 +23,88 @@ public class PythonRunner
 
     public bool IsRunning { get; private set; }
 
+    public string TranscriptDirectory { get; private set; }
+
     public PythonRunner(string scriptDirectory)
     {
-        _scriptPath = Path.Combine(scriptDirectory, SCRIPT_NAME);
-        _pythonPath = Path.Combine(VENV_PATH, "Scripts", "python.exe");
+        TranscriptDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LongAudioApp", "Transcripts");
+        Directory.CreateDirectory(TranscriptDirectory);
+
+        var bundledPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fast_engine", "fast_engine.exe");
+        if (File.Exists(bundledPath))
+        {
+            _useBundled = true;
+            _pythonPath = bundledPath;
+            _scriptPath = "";
+        }
+        else
+        {
+            _useBundled = false;
+            _scriptPath = Path.Combine(scriptDirectory, SCRIPT_NAME);
+            _pythonPath = Path.Combine(VENV_PATH, "Scripts", "python.exe");
+        }
+    }
+
+    private string BuildArgs(string command, string args = "")
+    {
+        if (_useBundled)
+        {
+            return $"{command} {args}".Trim();
+        }
+        else
+        {
+            return $"\"{_scriptPath}\" {command} {args}".Trim();
+        }
     }
 
     public async Task RunBatchScanAsync(string directory, bool useVad)
     {
         // Strip trailing backslash to prevent it escaping the closing quote on the command line
-        // Ensure path does not end in backslash to prevent quote escaping
         var safeDir = directory.TrimEnd('\\', '/');
-        if (safeDir.Length == 2 && safeDir[1] == ':') safeDir += "\\"; // Restore backslash for root drive C:\ -> "C:\" is bad, but "C:/" or "C:" is fine.
-        // Actually, "C:" is safest. "C:\" + quote -> escaped quote.
+        if (safeDir.Length == 2 && safeDir[1] == ':') safeDir += "\\"; 
         if (safeDir.EndsWith("\\")) safeDir = safeDir.TrimEnd('\\');
         
-        var args = $"\"{_scriptPath}\" batch_scan --dir \"{safeDir}\"";
-        if (!useVad) args += " --no-vad";
-        await RunProcessAsync(args);
+        var cmdArgs = $"--dir \"{safeDir}\"";
+        if (!useVad) cmdArgs += " --no-vad";
+        
+        await RunProcessAsync(BuildArgs("batch_scan", cmdArgs));
     }
 
     public async Task RunBatchTranscribeAsync(string? reportPath = null)
     {
-        var args = $"\"{_scriptPath}\" batch_transcribe";
-        if (reportPath != null) args += $" --report \"{reportPath}\"";
-        await RunProcessAsync(args);
+        var cmdArgs = $"--output-dir \"{TranscriptDirectory}\"";
+        if (reportPath != null) cmdArgs += $" --report \"{reportPath}\"";
+        await RunProcessAsync(BuildArgs("batch_transcribe", cmdArgs));
     }
 
     public async Task RunBatchTranscribeDirAsync(string directory, bool useVad)
     {
         var safeDir = directory.TrimEnd('\\', '/');
-        if (safeDir.EndsWith("\\")) safeDir = safeDir.TrimEnd('\\'); // Double safety
-        var args = $"\"{_scriptPath}\" batch_transcribe_dir --dir \"{safeDir}\"";
-        if (!useVad) args += " --no-vad";
-        await RunProcessAsync(args);
+        if (safeDir.EndsWith("\\")) safeDir = safeDir.TrimEnd('\\');
+        
+        var cmdArgs = $"--dir \"{safeDir}\" --output-dir \"{TranscriptDirectory}\"";
+        if (!useVad) cmdArgs += " --no-vad";
+        await RunProcessAsync(BuildArgs("batch_transcribe_dir", cmdArgs));
     }
 
     public async Task RunTranscribeAsync(string file, double start, double end)
     {
-        var args = $"\"{_scriptPath}\" transcribe \"{file}\" --start {start} --end {end}";
-        await RunProcessAsync(args);
+        var cmdArgs = $"\"{file}\" --start {start} --end {end} --output-dir \"{TranscriptDirectory}\"";
+        await RunProcessAsync(BuildArgs("transcribe", cmdArgs));
     }
 
     public async Task RunTranscribeFileAsync(string file, string model, bool useVad)
     {
-        var args = $"\"{_scriptPath}\" transcribe_file \"{file}\" --model {model}";
-        if (!useVad) args += " --no-vad";
-        await RunProcessAsync(args);
+        var cmdArgs = $"\"{file}\" --model {model} --output-dir \"{TranscriptDirectory}\"";
+        if (!useVad) cmdArgs += " --no-vad";
+        await RunProcessAsync(BuildArgs("transcribe_file", cmdArgs));
     }
 
     public async Task RunSearchTranscriptsAsync(string directory, string query)
     {
         var safeDir = directory.TrimEnd('\\', '/');
-        var args = $"\"{_scriptPath}\" search_transcripts --dir \"{safeDir}\" --query \"{query}\"";
-        await RunProcessAsync(args);
+        var cmdArgs = $"--dir \"{safeDir}\" --query \"{query}\"";
+        await RunProcessAsync(BuildArgs("search_transcripts", cmdArgs));
     }
 
     public void Cancel()
@@ -105,7 +134,7 @@ public class PythonRunner
             {
                 FileName = _pythonPath,
                 Arguments = arguments,
-                WorkingDirectory = Path.GetDirectoryName(_scriptPath),
+                WorkingDirectory = _useBundled ? Path.GetDirectoryName(_pythonPath) : Path.GetDirectoryName(_scriptPath),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -114,10 +143,18 @@ public class PythonRunner
                 StandardErrorEncoding = System.Text.Encoding.UTF8
             };
 
-            // Add venv to PATH and force unbuffered output
-            var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            psi.EnvironmentVariables["PATH"] = Path.Combine(VENV_PATH, "Scripts") + ";" + envPath;
-            psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+            // Add venv to PATH and force unbuffered output ONLY if not using bundled exe
+            if (!_useBundled)
+            {
+                var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                psi.EnvironmentVariables["PATH"] = Path.Combine(VENV_PATH, "Scripts") + ";" + envPath;
+                psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+            }
+            else
+            {
+                // For bundled exe, we might not need to set PATH, but PYTHONUNBUFFERED is still good
+                psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+            }
 
             _currentProcess = new Process { StartInfo = psi };
             _currentProcess.Start();

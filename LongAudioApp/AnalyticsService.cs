@@ -55,6 +55,8 @@ public static class AnalyticsService
     /// <summary>Fire-and-forget an event with optional parameters.</summary>
     public static async Task TrackEventAsync(string eventName, object? extraParams = null)
     {
+        if (!IsEnabled) return;
+
         try
         {
             RefreshSession();
@@ -114,6 +116,8 @@ public static class AnalyticsService
 
     private static void RefreshSession()
     {
+        if (!IsEnabled) return;
+
         var now = DateTime.UtcNow;
         var elapsed = now - _lastActivity;
 
@@ -128,6 +132,8 @@ public static class AnalyticsService
 
     // ===== Persistence =====
 
+    public static bool IsEnabled { get; set; } = true;
+
     private static void LoadState()
     {
         try
@@ -141,6 +147,7 @@ public static class AnalyticsService
                     _clientId = state.ClientId ?? "";
                     _sessionId = state.SessionId ?? "";
                     _lastActivity = state.LastActivity;
+                    IsEnabled = state.IsEnabled;
                 }
             }
         }
@@ -162,7 +169,8 @@ public static class AnalyticsService
             {
                 ClientId = _clientId,
                 SessionId = _sessionId,
-                LastActivity = _lastActivity
+                LastActivity = _lastActivity,
+                IsEnabled = IsEnabled
             };
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SettingsPath, json);
@@ -175,5 +183,6 @@ public static class AnalyticsService
         public string? ClientId { get; set; }
         public string? SessionId { get; set; }
         public DateTime LastActivity { get; set; }
+        public bool IsEnabled { get; set; } = true;
     }
 }

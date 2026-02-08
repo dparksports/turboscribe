@@ -5,18 +5,9 @@ import os
 import json
 from datetime import datetime
 
-import multiprocessing
-
-# Device Configuration
-def get_device_config():
-    if torch.cuda.is_available():
-        print("[INIT] CUDA detected. Using GPU.")
-        return "cuda", "float16"
-    else:
-        print("[INIT] CUDA not found. Using CPU.")
-        return "cpu", "int8"
-
-DEVICE, COMPUTE = get_device_config()
+# RTX 5090 Settings
+DEVICE = "cuda"
+COMPUTE = "float16"
 
 MEDIA_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.wav', '.mp3', '.flac', '.m4a', '.webm', '.aac', '.wma', '.ogg', '.m4v', '.3gp', '.ts', '.mpg', '.mpeg'}
 
@@ -203,11 +194,11 @@ def run_batch_scanner(directory, use_vad=True):
                 for cmd in r["transcribe_cmds"]:
                     print(f"    > {cmd}")
 
-def run_transcriber(file_path, start, end, model=None, output_dir=None):
+def run_transcriber(file_path, start, end, model=None):
     """
     MODE 2: SNIPER (Accuracy)
     Extracts the specific meeting and applies Large-v3.
-    Saves transcription to a .txt file.
+    Saves transcription to a .txt file next to the source media.
     """
     print(f"[STATUS] Transcribing: {file_path}")
     print(f"[STATUS] Range: {start:.1f}s - {end:.1f}s")
@@ -229,13 +220,9 @@ def run_transcriber(file_path, start, end, model=None, output_dir=None):
         lines.append(line)
         print(f"[TEXT] {s.start:.2f}|{s.end:.2f}|{s.text.strip()}")
 
-    # Determine output path
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        out_path = os.path.join(output_dir, f"{base_name}_transcript.txt")
-    else:
-        out_path = f"{os.path.splitext(file_path)[0]}_transcript.txt"
+    # Save to file next to the media
+    base = os.path.splitext(file_path)[0]
+    out_path = f"{base}_transcript.txt"
 
     # Append if file exists (multiple blocks for same file)
     mode = "a" if os.path.exists(out_path) else "w"
@@ -248,7 +235,7 @@ def run_transcriber(file_path, start, end, model=None, output_dir=None):
     print(f"[SAVED] {out_path}")
     return lines
 
-def run_batch_transcriber(report_path=None, output_dir=None):
+def run_batch_transcriber(report_path=None):
     """
     MODE 4: BATCH SNIPER
     Reads the scan report and transcribes all detected voice segments
@@ -283,7 +270,7 @@ def run_batch_transcriber(report_path=None, output_dir=None):
             block_num += 1
             print(f"  Block {block_num}/{total_blocks}: {b['start']:.1f}s - {b['end']:.1f}s")
             try:
-                run_transcriber(file_path, b["start"], b["end"], model=model, output_dir=output_dir)
+                run_transcriber(file_path, b["start"], b["end"], model=model)
             except Exception as e:
                 print(f"  [ERROR] {e}")
 
@@ -293,10 +280,11 @@ def run_batch_transcriber(report_path=None, output_dir=None):
     print(f"Files processed: {len(voice_files)}")
     print(f"Blocks transcribed: {block_num}")
 
-def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None):
+def run_batch_transcribe_dir(directory, use_vad=True):
     """
     MODE 5: FULL BATCH TRANSCRIBE
     Transcribes ALL media files in a directory using large-v3.
+    No scan step needed — processes every file start-to-finish.
     """
     media_files = find_media_files(directory)
     total = len(media_files)
@@ -308,9 +296,6 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None):
 
     transcribed = 0
     errors = 0
-
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
 
     for i, file_path in enumerate(media_files, 1):
         print(f"\n[{i}/{total}] Transcribing: {file_path}")
@@ -331,12 +316,8 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None):
                 print(f"[TEXT] {s.start:.2f}|{s.end:.2f}|{s.text.strip()}")
 
             if lines:
-                base_name = os.path.splitext(os.path.basename(file_path))[0]
-                if output_dir:
-                    out_path = os.path.join(output_dir, f"{base_name}_transcript.txt")
-                else:
-                    out_path = f"{os.path.splitext(file_path)[0]}_transcript.txt"
-                
+                base = os.path.splitext(file_path)[0]
+                out_path = f"{base}_transcript.txt"
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(f"--- Full Transcription ({info.duration:.1f}s) ---\n")
                     for line in lines:
@@ -356,7 +337,7 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None):
     print(f"Transcribed: {transcribed}")
     print(f"Errors:      {errors}")
 
-def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_dir=None):
+def run_transcribe_file(file_path, model_name="large-v3", use_vad=True):
     """
     MODE 6: FULL FILE TRANSCRIBE
     Transcribes a single media file with the specified model.
@@ -384,16 +365,10 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
         print(f"[TEXT] {s.start:.2f}|{s.end:.2f}|{s.text.strip()}")
 
     if lines:
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        base = os.path.splitext(file_path)[0]
         # Use model name in filename for versioning
         safe_model = model_name.replace("/", "_").replace("\\", "_")
-        
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-            out_path = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
-        else:
-            out_path = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
-            
+        out_path = f"{base}_transcript_{safe_model}.txt"
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(f"--- Transcription ({model_name}, {info.duration:.1f}s) ---\n")
             for line in lines:
@@ -469,7 +444,6 @@ def run_search_transcripts(directory, query):
     print(f"[SEARCH_JSON] {json.dumps(results)}")
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()  # Needed for PyInstaller on Windows
     parser = argparse.ArgumentParser(description="Fast Whisper Voice Scanner & Transcriber")
     parser.add_argument("mode", choices=["scan", "batch_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts"])
     parser.add_argument("file", nargs="?", help="Path to media file (for scan/transcribe)")
@@ -480,7 +454,6 @@ if __name__ == "__main__":
     parser.add_argument("--report", help="Path to scan report JSON (for batch_transcribe)")
     parser.add_argument("--model", default="large-v3", help="Whisper model to use (e.g. tiny.en, base.en, small.en, medium.en, large-v3)")
     parser.add_argument("--query", help="Search query for search_transcripts mode")
-    parser.add_argument("--output-dir", help="Directory to save transcript files")
     args = parser.parse_args()
 
     use_vad = not args.no_vad
@@ -494,20 +467,20 @@ if __name__ == "__main__":
             exit(1)
         run_batch_scanner(directory, use_vad=use_vad)
     elif args.mode == "transcribe":
-        run_transcriber(args.file, args.start, args.end, output_dir=args.output_dir)
+        run_transcriber(args.file, args.start, args.end)
     elif args.mode == "batch_transcribe":
-        run_batch_transcriber(args.report, output_dir=args.output_dir)
+        run_batch_transcriber(args.report)
     elif args.mode == "batch_transcribe_dir":
         directory = args.dir or args.file
         if not directory:
             print("Error: Provide a directory with --dir or as positional argument")
             exit(1)
-        run_batch_transcribe_dir(directory, use_vad=use_vad, output_dir=args.output_dir)
+        run_batch_transcribe_dir(directory, use_vad=use_vad)
     elif args.mode == "transcribe_file":
         if not args.file:
             print("Error: Provide a file path")
             exit(1)
-        run_transcribe_file(args.file, model_name=args.model, use_vad=use_vad, output_dir=args.output_dir)
+        run_transcribe_file(args.file, model_name=args.model, use_vad=use_vad)
     elif args.mode == "search_transcripts":
         directory = args.dir or "."
         if not args.query:
