@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon></ApplicationIcon>
-    <AssemblyName>TurboScribePrivate</AssemblyName>
+    <AssemblyName>TurboScribe</AssemblyName>
     <RootNamespace>LongAudioApp</RootNamespace>
     <Version>1.5.2</Version>
   </PropertyGroup>

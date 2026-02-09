@@ -12,8 +12,8 @@
 
 ## 📥 Download
 
-**[Download TurboScribe Private v1.5.2 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v1.5.2/TurboScribePrivate-v1.5.2-win-x64.zip)**  
-*(Extract the zip and run `TurboScribePrivate.exe`)*
+**[Download TurboScribe v1.5.2 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v1.5.2/TurboScribe-v1.5.2-win-x64.zip)**  
+*(Extract the zip and run `TurboScribe.exe`)*
 
 ![TurboScribe Private Screenshot](turboscribe_private_screenshot_1770581220966.png)
 
