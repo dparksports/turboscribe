@@ -90,38 +90,50 @@ public class PipInstaller
 
     public async Task InstallLibrariesAsync(Action<string> onOutput)
     {
-        // Install torch with CUDA 12.8 support (cu128).
-        // cu128 is backward compatible with RTX 3090, 4090, and 5090.
+        int failures = 0;
+
+        // Install torch with CUDA 12.4 support (cu124).
+        // cu124 works with RTX 3090, 4090, and 5090 and has the widest wheel availability.
         // Without the --index-url, pip installs CPU-only torch on Windows.
-        onOutput("Installing PyTorch with CUDA 12.8 (cu128) support...");
-        await RunCommandAsync("-m pip install torch torchaudio --upgrade --no-warn-script-location --index-url https://download.pytorch.org/whl/cu128", onOutput);
+        onOutput("Installing PyTorch with CUDA 12.4 (cu124) support...");
+        if (!await TryRunCommandAsync("-m pip install torch torchaudio --upgrade --no-warn-script-location --index-url https://download.pytorch.org/whl/cu124", onOutput))
+            failures++;
         
         // Install faster-whisper separately (from default PyPI)
         onOutput("Installing faster-whisper...");
-        await RunCommandAsync("-m pip install faster-whisper --upgrade --no-warn-script-location --prefer-binary", onOutput);
+        if (!await TryRunCommandAsync("-m pip install faster-whisper --upgrade --no-warn-script-location --prefer-binary", onOutput))
+            failures++;
 
         // Install sentence-transformers for semantic search
         onOutput("Installing sentence-transformers for semantic search...");
-        await RunCommandAsync("-m pip install sentence-transformers --upgrade --no-warn-script-location --prefer-binary", onOutput);
+        if (!await TryRunCommandAsync("-m pip install sentence-transformers --upgrade --no-warn-script-location --prefer-binary", onOutput))
+            failures++;
 
         // Install llama-cpp-python with CUDA support for GPU inference
         // Default PyPI wheel is CPU-only on Windows; use the pre-built CUDA wheel
         onOutput("Installing llama-cpp-python with CUDA support...");
-        await RunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu128", onOutput);
+        if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124", onOutput))
+            failures++;
 
         // Install huggingface-hub for model downloading
         onOutput("Installing huggingface-hub...");
-        await RunCommandAsync("-m pip install huggingface-hub --upgrade --no-warn-script-location --prefer-binary", onOutput);
+        if (!await TryRunCommandAsync("-m pip install huggingface-hub --upgrade --no-warn-script-location --prefer-binary", onOutput))
+            failures++;
 
         // Install openai SDK (used for OpenAI and Gemini APIs)
         onOutput("Installing openai SDK...");
-        await RunCommandAsync("-m pip install openai --upgrade --no-warn-script-location --prefer-binary", onOutput);
+        if (!await TryRunCommandAsync("-m pip install openai --upgrade --no-warn-script-location --prefer-binary", onOutput))
+            failures++;
 
         // Install anthropic SDK (for Claude API)
         onOutput("Installing anthropic SDK...");
-        await RunCommandAsync("-m pip install anthropic --upgrade --no-warn-script-location --prefer-binary", onOutput);
-        
-        onOutput("Installation complete.");
+        if (!await TryRunCommandAsync("-m pip install anthropic --upgrade --no-warn-script-location --prefer-binary", onOutput))
+            failures++;
+
+        if (failures > 0)
+            onOutput($"\nDone with {failures} warning(s). Some packages may have failed — check the log above.");
+        else
+            onOutput("\nAll libraries installed successfully.");
     }
 
     private async Task RunCommandAsync(string args, Action<string> onOutput)
@@ -152,5 +164,38 @@ public class PipInstaller
         {
             throw new Exception($"Command failed with exit code {p.ExitCode}");
         }
+    }
+
+    /// <summary>Runs a pip command, returns true on success, false on failure (logs warning instead of throwing).</summary>
+    private async Task<bool> TryRunCommandAsync(string args, Action<string> onOutput)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = _pythonPath,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        using var p = new Process { StartInfo = psi };
+        p.OutputDataReceived += (s, e) => { if (e.Data != null) onOutput(e.Data); };
+        p.ErrorDataReceived += (s, e) => { if (e.Data != null) onOutput($"[ERR] {e.Data}"); };
+        
+        p.Start();
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        
+        await p.WaitForExitAsync();
+        
+        if (p.ExitCode != 0)
+        {
+            onOutput($"[WARN] Command exited with code {p.ExitCode} — continuing...");
+            return false;
+        }
+        return true;
     }
 }
