@@ -1,23 +1,23 @@
-# 🎙️ TurboScribe Private
+# 🎙️ TurboScribe
 
 **Transcribe your meetings and notes locally, privately, and 10x faster than online services for free.**
 
-**TurboScribe Private** is a **free and open-source**, GPU-accelerated desktop tool designed for professionals who need to transcribe sensitive audio — **meetings, interviews, voice memos, and lectures** — without uploading data to the cloud. **(Requires NVIDIA GPU)**
+**TurboScribe** is a **free and open-source**, GPU-accelerated desktop tool designed for professionals who need to transcribe sensitive audio — **meetings, interviews, voice memos, and lectures** — without uploading data to the cloud. **(Requires NVIDIA GPU)**
 
 > **🌟 Exceptional Noise Handling:** Works perfectly with **noisy outdoor meetings** involving car traffic, planes, lawn mowers, wind, and barking dogs.
 
-# TurboScribe Private
+# TurboScribe
 
-**TurboScribe Private** is a secure, offline transcription tool powered by **faster-whisper** and **Whisper Large-v3**. It runs entirely on your local machine, ensuring no audio data ever leaves your device.
+**TurboScribe** is a secure, offline transcription tool powered by **faster-whisper** and **Whisper Large-v3**. It runs entirely on your local machine, ensuring no audio data ever leaves your device.
 
 ## 📥 Download
 
 **[Download TurboScribe v1.5.2 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v1.5.2/TurboScribe-v1.5.2-win-x64.zip)**  
 *(Extract the zip and run `TurboScribe.exe`)*
 
-![TurboScribe Private Screenshot](turboscribe_private_screenshot_1770581220966.png)
+![TurboScribe Screenshot](turboscribe_private_screenshot_1770581220966.png)
 
-## 🔒 Why TurboScribe Private?
+## 🔒 Why TurboScribe?
 
 - **100% Private & Offline**: Your audio files *never* leave your computer. Perfect for confidential meetings, legal interviews, and private voice notes.
 - **10x Faster Generation**: Built on `faster-whisper` (CTranslate2) with CUDA acceleration to transcribe hours of audio in minutes.

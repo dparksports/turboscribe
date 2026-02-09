@@ -92,11 +92,11 @@ public class PipInstaller
     {
         int failures = 0;
 
-        // Install torch with CUDA 12.4 support (cu124).
-        // cu124 works with RTX 3090, 4090, and 5090 and has the widest wheel availability.
+        // Install torch with CUDA 12.6 support (cu126).
+        // cu126 supports RTX 3090, 4090, and 5090 (Blackwell) with good wheel availability.
         // Without the --index-url, pip installs CPU-only torch on Windows.
-        onOutput("Installing PyTorch with CUDA 12.4 (cu124) support...");
-        if (!await TryRunCommandAsync("-m pip install torch torchaudio --upgrade --no-warn-script-location --index-url https://download.pytorch.org/whl/cu124", onOutput))
+        onOutput("Installing PyTorch with CUDA 12.6 (cu126) support...");
+        if (!await TryRunCommandAsync("-m pip install torch torchaudio --upgrade --no-warn-script-location --index-url https://download.pytorch.org/whl/cu126", onOutput))
             failures++;
         
         // Install faster-whisper separately (from default PyPI)
@@ -112,7 +112,7 @@ public class PipInstaller
         // Install llama-cpp-python with CUDA support for GPU inference
         // Default PyPI wheel is CPU-only on Windows; use the pre-built CUDA wheel
         onOutput("Installing llama-cpp-python with CUDA support...");
-        if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124", onOutput))
+        if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu126", onOutput))
             failures++;
 
         // Install huggingface-hub for model downloading
