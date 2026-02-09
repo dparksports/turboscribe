@@ -307,6 +307,23 @@ public class PythonRunner : IDisposable
         await RunProcessAsync(BuildArgs("search_transcripts", cmdArgs));
     }
 
+    public async Task RunSemanticSearchAsync(string directory, string query, string embedModel, string transcriptDir)
+    {
+        var safeDir = directory.TrimEnd('\\', '/');
+        var cmdArgs = $"--dir \"{safeDir}\" --query \"{query}\" --embed-model {embedModel} --transcript-dir \"{transcriptDir}\"";
+        await RunProcessAsync(BuildArgs("semantic_search", cmdArgs));
+    }
+
+    public async Task RunAnalyzeAsync(string transcriptFile, string analyzeType, string provider,
+        string? model = null, string? apiKey = null, string? cloudModel = null)
+    {
+        var cmdArgs = $"\"{transcriptFile}\" --analyze-type {analyzeType} --provider {provider}";
+        if (!string.IsNullOrEmpty(model)) cmdArgs += $" --model {model}";
+        if (!string.IsNullOrEmpty(apiKey)) cmdArgs += $" --api-key \"{apiKey}\"";
+        if (!string.IsNullOrEmpty(cloudModel)) cmdArgs += $" --cloud-model \"{cloudModel}\"";
+        await RunProcessAsync(BuildArgs("analyze", cmdArgs));
+    }
+
     public void Cancel()
     {
         _cts?.Cancel();

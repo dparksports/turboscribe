@@ -21,11 +21,13 @@
         </StackPanel>
 
         <!-- Tab Control -->
-        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Background="Transparent" BorderThickness="0"
                     Foreground="{StaticResource TextBrush}">
 
-            <!-- ===== SCAN TAB ===== -->
-            <TabItem Header="🔍 Scan">
+
+
+            <!-- ===== TRANSCRIBE TAB ===== -->
+            <TabItem Header="📝 Transcribe">
                 <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -39,7 +41,6 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="DirectoryBox" Grid.Column="0"
                                  Text="C:\Users\k2\My Drive (dpark.sports@gmail.com)"
@@ -50,92 +51,14 @@
                         <Button x:Name="BrowseBtn" Grid.Column="1" Content="Browse" 
                                 Style="{StaticResource AccentButton}" Margin="8,0,0,0"
                                 Click="BrowseBtn_Click"/>
-                        <!-- Checkbox moved to Settings tab -->
                     </Grid>
-
-                    <!-- Scan Controls -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button x:Name="ScanBtn" Content="▶ Scan for Voice" 
-                                Style="{StaticResource AccentButton}" Click="ScanBtn_Click"/>
-                        <Button x:Name="CancelScanBtn" Content="⏹ Cancel" 
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
-                                Click="CancelBtn_Click" IsEnabled="False"/>
-                        <Button x:Name="ViewLogBtn" Content="📋 View Log" 
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
-                                Click="ViewLogBtn_Click"/>
-                        <Button x:Name="LoadResultsBtn" Content="📂 Load Existing Results" 
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
-                                Click="LoadResultsBtn_Click"/>
-                    </StackPanel>
-
-                    <!-- Progress -->
-                    <Grid Grid.Row="2" Margin="0,0,0,8">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <ProgressBar x:Name="ScanProgress" Grid.Row="0" Height="6" 
-                                     Background="{StaticResource SurfaceBrush}" 
-                                     Foreground="{StaticResource AccentBrush}" 
-                                     BorderThickness="0" Value="0"/>
-                        <TextBlock x:Name="ScanStatusLabel" Grid.Row="1" 
-                                   Foreground="{StaticResource TextDimBrush}" 
-                                   FontSize="11" Margin="0,4,0,0" Text="Ready"/>
-                    </Grid>
-
-                    <!-- Results DataGrid -->
-                    <DataGrid x:Name="ResultsGrid" Grid.Row="3" AutoGenerateColumns="False"
-                              IsReadOnly="True" SelectionMode="Single"
-                              Background="{StaticResource SurfaceBrush}" 
-                              Foreground="{StaticResource TextBrush}"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              RowBackground="{StaticResource SurfaceBrush}"
-                              AlternatingRowBackground="#252536"
-                              GridLinesVisibility="Horizontal"
-                              HorizontalGridLinesBrush="{StaticResource BorderBrush}"
-                              HeadersVisibility="Column" CanUserResizeRows="False"
-                              FontSize="12">
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#1A1A2A"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="FontSize" Value="11"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="60"/>
-                            <DataGridTextColumn Header="Folder" Binding="{Binding FolderName}" Width="140"/>
-                            <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="*"/>
-                            <DataGridTextColumn Header="Duration" Binding="{Binding DurationDisplay}" Width="70"/>
-                            <DataGridTextColumn Header="Segments" Binding="{Binding SegmentsFound}" Width="70"/>
-                            <DataGridTextColumn Header="Voice Blocks" Binding="{Binding BlocksSummary}" Width="200"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </TabItem>
-
-            <!-- ===== TRANSCRIBE TAB ===== -->
-            <TabItem Header="📝 Transcribe">
-                <Grid Margin="0,12,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
 
                     <!-- Transcribe Controls -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button x:Name="BatchTranscribeBtn" Content="▶ Transcribe Voice Only" 
-                                Style="{StaticResource AccentButton}" Click="BatchTranscribeBtn_Click"
-                                ToolTip="Transcribe only detected voice segments (requires scan first)"/>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
                         <Button x:Name="TranscribeAllBtn" Content="▶ Transcribe All Files" 
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Style="{StaticResource AccentButton}"
                                 Click="TranscribeAllBtn_Click"
-                                ToolTip="Transcribe every media file in the directory (no scan needed)"/>
+                                ToolTip="Transcribe every media file in the directory"/>
                         <Button x:Name="CancelTranscribeBtn" Content="⏹ Cancel" 
                                 Style="{StaticResource AccentButton}" Margin="8,0,0,0"
                                 Click="CancelBtn_Click" IsEnabled="False"/>
@@ -147,11 +70,11 @@
                                 Click="ViewSilentBtn_Click" IsEnabled="False"/>
                         <TextBlock x:Name="TranscribeCountLabel" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextDimBrush}" FontSize="12"
-                                   Margin="12,0,0,0" Text="Load scan results first"/>
+                                   Margin="12,0,0,0" Text="Set directory and click Transcribe"/>
                     </StackPanel>
 
                     <!-- Progress -->
-                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid Grid.Row="2" Margin="0,0,0,8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -165,13 +88,16 @@
                                    FontSize="11" Margin="0,4,0,0" Text="Ready"/>
                     </Grid>
 
-                    <!-- Split: Transcript List + Content Viewer -->
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="3">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="280"/>
-                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="420" MinWidth="200"/>
+                            <ColumnDefinition Width="6"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
+
+                        <!-- Draggable splitter -->
+                        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                      Background="{StaticResource BorderBrush}" Cursor="SizeWE"/>
 
                         <!-- Left: Transcript file list -->
                         <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" 
@@ -181,25 +107,57 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="📄 Transcript Files" 
-                                           FontSize="12" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextBrush}" 
-                                           Margin="10,8,10,4"/>
+                                <Grid Grid.Row="0" Margin="8,6,8,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="📄 Transcript Files" 
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}" 
+                                               VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                    <ComboBox x:Name="TranscriptSortCombo" Grid.Column="1" Width="90" FontSize="10"
+                                              SelectedIndex="0" SelectionChanged="TranscriptSortCombo_Changed">
+                                        <ComboBoxItem Content="Newest" Tag="date"/>
+                                        <ComboBoxItem Content="Largest" Tag="size"/>
+                                        <ComboBoxItem Content="Name" Tag="name"/>
+                                    </ComboBox>
+                                </Grid>
+                                <!-- Filter Box -->
+                                <TextBox x:Name="TranscriptFilterBox" Grid.Row="1"
+                                         Background="#1A1A2A" 
+                                         Foreground="{StaticResource TextBrush}"
+                                         BorderBrush="{StaticResource BorderBrush}"
+                                         FontSize="12" Padding="6,4" Margin="8,2,8,4"
+                                         TextChanged="TranscriptFilterBox_TextChanged"
+                                         ToolTip="Filter transcript files by name"/>
                                 <!-- Search Box -->
-                                <TextBox x:Name="SearchBox" Grid.Row="1"
+                                <TextBox x:Name="SearchBox" Grid.Row="2"
                                          Background="#1A1A2A" 
                                          Foreground="{StaticResource TextBrush}"
                                          BorderBrush="{StaticResource BorderBrush}"
                                          FontSize="12" Padding="6,4" Margin="8,0,8,4"
                                          KeyDown="SearchBox_KeyDown"
                                          ToolTip="Type and press Enter to search across all transcripts"/>
-                                <ListBox x:Name="TranscriptList" Grid.Row="2"
+                                <ListBox x:Name="TranscriptList" Grid.Row="3"
                                          Background="Transparent" BorderThickness="0"
                                          Foreground="{StaticResource TextBrush}"
                                          FontSize="11" Padding="4"
                                          SelectionChanged="TranscriptList_SelectionChanged">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu Background="#1E1E2E" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}">
+                                            <MenuItem Header="📝 Summarize" Click="ContextSummarize_Click"/>
+                                            <MenuItem Header="📋 Outline" Click="ContextOutline_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="📊 Open in Analysis" Click="ContextOpenAnalysis_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="▶ Open in Media Player" Click="ContextOpenMediaPlayer_Click"/>
+                                            <MenuItem Header="📂 Reveal in Explorer" Click="ContextRevealExplorer_Click"/>
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="2,4">
@@ -243,35 +201,49 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <!-- File info + Open Folder -->
+                            <!-- File info + Open Media -->
                             <Grid Grid.Row="0" Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="TranscriptFileLabel" Grid.Column="0"
                                            Text="Select a transcript file to view" 
                                            FontSize="12" Foreground="{StaticResource TextDimBrush}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <Button x:Name="OpenInExplorerBtn" Grid.Column="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                <Button x:Name="OpenMediaBtn" Grid.Column="1"
+                                        Content="📂 Open Media File" 
+                                        Style="{StaticResource AccentButton}"
+                                        Click="OpenMediaBtn_Click"
+                                        Visibility="Collapsed" FontSize="11" Padding="10,4"/>
+                                <Button x:Name="OpenInExplorerBtn" Grid.Column="2"
                                         Content="📂 Open Folder" 
                                         Style="{StaticResource AccentButton}"
                                         Click="OpenInExplorerBtn_Click"
-                                        Visibility="Collapsed" FontSize="11" Padding="10,4"/>
+                                        Visibility="Collapsed" FontSize="11" Padding="10,4" Margin="4,0,0,0"/>
                             </Grid>
                             <!-- Re-transcribe controls -->
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6"
                                         x:Name="RetranscribePanel" Visibility="Collapsed">
                                 <TextBlock Text="Model:" Foreground="{StaticResource TextDimBrush}" 
                                            FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="ModelSelector" Width="140" FontSize="11"
+                                <ComboBox x:Name="ModelSelector" Width="160" FontSize="11"
                                           Background="#1A1A2A" Foreground="{StaticResource TextBrush}"
-                                          BorderBrush="{StaticResource BorderBrush}" SelectedIndex="4">
-                                    <ComboBoxItem Content="tiny.en"/>
-                                    <ComboBoxItem Content="base.en"/>
-                                    <ComboBoxItem Content="small.en"/>
-                                    <ComboBoxItem Content="medium.en"/>
-                                    <ComboBoxItem Content="large-v3"/>
+                                          BorderBrush="{StaticResource BorderBrush}" SelectedIndex="10">
+                                    <ComboBoxItem Content="tiny" Tag="tiny"/>
+                                    <ComboBoxItem Content="tiny.en" Tag="tiny.en"/>
+                                    <ComboBoxItem Content="base" Tag="base"/>
+                                    <ComboBoxItem Content="base.en" Tag="base.en"/>
+                                    <ComboBoxItem Content="small" Tag="small"/>
+                                    <ComboBoxItem Content="small.en" Tag="small.en"/>
+                                    <ComboBoxItem Content="medium" Tag="medium"/>
+                                    <ComboBoxItem Content="medium.en" Tag="medium.en"/>
+                                    <ComboBoxItem Content="large-v1" Tag="large-v1"/>
+                                    <ComboBoxItem Content="large-v2" Tag="large-v2"/>
+                                    <ComboBoxItem Content="large-v3" Tag="large-v3"/>
+                                    <ComboBoxItem Content="turbo" Tag="turbo"/>
                                 </ComboBox>
                                 <Button x:Name="RetranscribeBtn" Content="🔄 Re-transcribe" 
                                         Style="{StaticResource AccentButton}" Margin="8,0,0,0"
@@ -316,6 +288,12 @@
                                       Foreground="{StaticResource TextBrush}" FontSize="13" 
                                       IsChecked="True" Margin="0,4"/>
                             <TextBlock Text="Disable Voice Activity Detection if your audio has loud background noise." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
+                            
+                            <CheckBox x:Name="EnglishOnlyCheck" Content="English Only Models" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="False" Click="EnglishOnlyCheck_Click" Margin="0,4"/>
+                            <TextBlock Text="Show only English-optimized models in the Transcribe tab model selector." 
                                        FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
                             
                             <TextBlock Text="Device (GPU / CPU)" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
@@ -433,6 +411,282 @@
                          FontSize="11" Padding="8" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" Margin="0,12,0,0"
                          AcceptsReturn="True"/>
+            </TabItem>
+
+            <!-- ===== SEMANTIC SEARCH TAB ===== -->
+            <TabItem Header="🔎 Semantic Search">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Search Controls -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SemanticSearchBox" Grid.Column="0"
+                                 Background="{StaticResource SurfaceBrush}" 
+                                 Foreground="{StaticResource TextBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}"
+                                 Padding="8,6" FontSize="13" VerticalContentAlignment="Center"
+                                 KeyDown="SemanticSearchBox_KeyDown"
+                                 ToolTip="Enter a keyword or sentence to search"/>
+                        <ComboBox x:Name="SearchModeCombo" Grid.Column="1" Width="140" Margin="8,0,0,0"
+                                  FontSize="11" SelectedIndex="0">
+                            <ComboBoxItem Content="Exact Match" Tag="exact"/>
+                            <ComboBoxItem Content="Similar Meaning" Tag="semantic"/>
+                        </ComboBox>
+                        <ComboBox x:Name="EmbeddingModelCombo" Grid.Column="2" Width="180" Margin="8,0,0,0"
+                                  FontSize="11" SelectedIndex="0"
+                                  ToolTip="Embedding model for semantic search">
+                            <ComboBoxItem Content="all-MiniLM-L6-v2" Tag="all-MiniLM-L6-v2"/>
+                            <ComboBoxItem Content="all-mpnet-base-v2" Tag="all-mpnet-base-v2"/>
+                            <ComboBoxItem Content="gte-small" Tag="thenlper/gte-small"/>
+                            <ComboBoxItem Content="Qwen3-Embedding-0.6B" Tag="Qwen/Qwen3-Embedding-0.6B"/>
+                            <ComboBoxItem Content="EmbeddingGemma-300M" Tag="google/embedding-gemma-300m"/>
+                        </ComboBox>
+                        <Button x:Name="SemanticSearchBtn" Grid.Column="3" Content="🔍 Search"
+                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Click="SemanticSearchBtn_Click"/>
+                    </Grid>
+
+                    <!-- Search Status -->
+                    <TextBlock x:Name="SearchStatusLabel" Grid.Row="1"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               Margin="0,0,0,8" Text="Enter a search query above"/>
+
+                    <!-- Search Results -->
+                    <DataGrid x:Name="SearchResultsGrid" Grid.Row="2" AutoGenerateColumns="False"
+                              IsReadOnly="True" SelectionMode="Single"
+                              Background="{StaticResource SurfaceBrush}" 
+                              Foreground="{StaticResource TextBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              RowBackground="{StaticResource SurfaceBrush}"
+                              AlternatingRowBackground="#252536"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                              HeadersVisibility="Column" CanUserResizeRows="False"
+                              FontSize="12">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1A1A2A"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="200"/>
+                            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" Width="80"/>
+                            <DataGridTextColumn Header="Matching Content" Binding="{Binding MatchSnippet}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== ANALYSIS TAB ===== -->
+            <TabItem Header="📊 Analysis">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- LLM Provider Selection -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="LLM Provider:" Foreground="{StaticResource TextDimBrush}" 
+                                   FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="LlmProviderCombo" Grid.Column="1" Width="120" FontSize="11"
+                                  SelectionChanged="LlmProviderCombo_SelectionChanged" SelectedIndex="0">
+                            <ComboBoxItem Content="Local" Tag="local"/>
+                            <ComboBoxItem Content="Gemini" Tag="gemini"/>
+                            <ComboBoxItem Content="OpenAI" Tag="openai"/>
+                            <ComboBoxItem Content="Claude" Tag="claude"/>
+                        </ComboBox>
+
+                        <!-- Local Model Selector (shown when Local) -->
+                        <ComboBox x:Name="LocalModelCombo" Grid.Column="2" Width="220" Margin="8,0,0,0"
+                                  FontSize="11" SelectedIndex="0">
+                            <ComboBoxItem Content="Llama 3.1 8B (Q4)" Tag="llama-3.1-8b"/>
+                            <ComboBoxItem Content="Mistral 7B v0.3 (Q4)" Tag="mistral-7b"/>
+                            <ComboBoxItem Content="Phi-3 Mini (Q4)" Tag="phi-3-mini"/>
+                            <ComboBoxItem Content="Qwen2 7B (Q4)" Tag="qwen2-7b"/>
+                            <ComboBoxItem Content="Gemma 2 2B (Q4)" Tag="gemma-2-2b"/>
+                        </ComboBox>
+
+                        <!-- Cloud API Key (shown when Cloud) -->
+                        <StackPanel x:Name="CloudApiPanel" Grid.Column="3" Orientation="Horizontal"
+                                    Margin="8,0,0,0" Visibility="Collapsed">
+                            <TextBlock Text="API Key:" Foreground="{StaticResource TextDimBrush}" 
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <PasswordBox x:Name="ApiKeyBox" Width="250" FontSize="11"
+                                         Background="#1A1A2A" Foreground="{StaticResource TextBrush}"
+                                         BorderBrush="{StaticResource BorderBrush}" Padding="6,4"/>
+                            <TextBlock Text="Model:" Foreground="{StaticResource TextDimBrush}" 
+                                       FontSize="12" VerticalAlignment="Center" Margin="8,0,6,0"/>
+                            <TextBox x:Name="CloudModelBox" Width="180" FontSize="11"
+                                     Background="#1A1A2A" Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}" Padding="6,4"
+                                     Text="gemini-2.0-flash"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Action Buttons -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="SummarizeAllBtn" Content="📝 Summarize" 
+                                Style="{StaticResource AccentButton}"
+                                Click="SummarizeAllBtn_Click"
+                                ToolTip="Summarize the selected transcript"/>
+                        <Button x:Name="OutlineAllBtn" Content="📋 Outline" 
+                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Click="OutlineAllBtn_Click"
+                                ToolTip="Outline the selected transcript"/>
+                        <TextBlock Text="|" Foreground="{StaticResource BorderBrush}" 
+                                   VerticalAlignment="Center" Margin="10,0" FontSize="16"/>
+                        <Button x:Name="SummarizeBatchBtn" Content="📝 Summarize All" 
+                                Style="{StaticResource AccentButton}"
+                                Click="SummarizeBatchBtn_Click"
+                                ToolTip="Summarize all transcript files"/>
+                        <Button x:Name="OutlineBatchBtn" Content="📋 Outline All" 
+                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Click="OutlineBatchBtn_Click"
+                                ToolTip="Outline all transcript files"/>
+                        <CheckBox x:Name="SkipExistingSummaryCheck" Content="Skip existing summaries" 
+                                  IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"
+                                  Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                        <CheckBox x:Name="SkipExistingOutlineCheck" Content="Skip existing outlines" 
+                                  IsChecked="True" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                        <Button x:Name="CancelAnalysisBtn" Content="⏹ Cancel" 
+                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Click="CancelAnalysisBtn_Click" IsEnabled="False"/>
+                        <TextBlock x:Name="AnalysisStatusLabel" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextDimBrush}" FontSize="12"
+                                   Margin="12,0,0,0" Text="Select a provider and action"/>
+                    </StackPanel>
+
+                    <!-- Analysis Progress -->
+                    <ProgressBar x:Name="AnalysisProgress" Grid.Row="2" Height="6" 
+                                 Background="{StaticResource SurfaceBrush}" 
+                                 Foreground="{StaticResource AccentBrush}" 
+                                 BorderThickness="0" Value="0" Margin="0,0,0,8"/>
+
+                    <!-- Analysis Results -->
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="420" MinWidth="200"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Draggable splitter -->
+                        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                      Background="{StaticResource BorderBrush}" Cursor="SizeWE"/>
+
+                        <!-- Left: Transcript list for analysis -->
+                        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" 
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="8,6,8,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="📄 Transcript Files" 
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}" 
+                                               VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                    <ComboBox x:Name="AnalysisSortCombo" Grid.Column="1" Width="90" FontSize="10"
+                                              SelectedIndex="0" SelectionChanged="AnalysisSortCombo_Changed">
+                                        <ComboBoxItem Content="Newest" Tag="date"/>
+                                        <ComboBoxItem Content="Largest" Tag="size"/>
+                                        <ComboBoxItem Content="Name" Tag="name"/>
+                                    </ComboBox>
+                                </Grid>
+                                <TextBox x:Name="AnalysisFilterBox" Grid.Row="1"
+                                         Background="#1A1A2A" 
+                                         Foreground="{StaticResource TextBrush}"
+                                         BorderBrush="{StaticResource BorderBrush}"
+                                         FontSize="12" Padding="6,4" Margin="8,2,8,4"
+                                         TextChanged="AnalysisFilterBox_TextChanged"
+                                         ToolTip="Filter transcript files by name"/>
+                                <ListBox x:Name="AnalysisTranscriptList" Grid.Row="2"
+                                         Background="Transparent" BorderThickness="0"
+                                         Foreground="{StaticResource TextBrush}"
+                                         FontSize="11" Padding="4"
+                                         SelectionChanged="AnalysisTranscriptList_SelectionChanged">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu Background="#1E1E2E" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}">
+                                            <MenuItem Header="📝 Summarize" Click="AnalysisContextSummarize_Click"/>
+                                            <MenuItem Header="📋 Outline" Click="AnalysisContextOutline_Click"/>
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="2,4">
+                                                <TextBlock Text="{Binding FileName}" 
+                                                           Foreground="{StaticResource TextBrush}"
+                                                           FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding SummaryPreview}" 
+                                                           Foreground="{StaticResource TextDimBrush}"
+                                                           FontSize="10" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Padding" Value="6,2"/>
+                                            <Setter Property="Cursor" Value="Hand"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#3B3B52"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#333344"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Right: Analysis output -->
+                        <TextBox x:Name="AnalysisOutputBox" Grid.Column="2" IsReadOnly="True"
+                                 Background="{StaticResource SurfaceBrush}"
+                                 Foreground="{StaticResource TextBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}"
+                                 FontFamily="Cascadia Mono,Consolas,Courier New"
+                                 FontSize="12" Padding="10"
+                                 VerticalScrollBarVisibility="Auto"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 Text="Select transcripts and click Summarize or Outline"/>
+                    </Grid>
+                </Grid>
             </TabItem>
         </TabControl>
 

@@ -12,13 +12,24 @@ from datetime import datetime
 import multiprocessing
 
 # Device Configuration
-def get_device_config():
-    if torch.cuda.is_available():
-        print("[INIT] CUDA detected. Using GPU.")
-        return "cuda", "float16"
-    else:
-        print("[INIT] CUDA not found. Using CPU.")
+def get_device_config(device_override=None):
+    if device_override == "cpu":
+        print("[INIT] Forced CPU mode.")
         return "cpu", "int8"
+    elif device_override == "cuda":
+        if torch.cuda.is_available():
+            print("[INIT] Forced CUDA mode. GPU available.")
+            return "cuda", "float16"
+        else:
+            print("[INIT] CUDA requested but not available! Falling back to CPU.")
+            return "cpu", "int8"
+    else:  # auto
+        if torch.cuda.is_available():
+            print("[INIT] CUDA detected. Using GPU.")
+            return "cuda", "float16"
+        else:
+            print("[INIT] CUDA not found. Using CPU.")
+            return "cpu", "int8"
 
 DEVICE, COMPUTE = get_device_config()
 
@@ -524,7 +535,14 @@ if __name__ == "__main__":
     parser.add_argument("--query", help="Search query for search_transcripts mode")
     parser.add_argument("--output-dir", help="Directory to save transcript files")
     parser.add_argument("--skip-existing", action="store_true", help="Skip files if transcript already exists")
+    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto", help="Device to use: auto, cuda, or cpu")
     args = parser.parse_args()
+
+    # Apply device override before any model loading
+    def apply_device_override(device_arg):
+        global DEVICE, COMPUTE
+        DEVICE, COMPUTE = get_device_config(device_arg)
+    apply_device_override(args.device)
 
     use_vad = not args.no_vad
 

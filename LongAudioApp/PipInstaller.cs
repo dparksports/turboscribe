@@ -99,6 +99,27 @@ public class PipInstaller
         // Install faster-whisper separately (from default PyPI)
         onOutput("Installing faster-whisper...");
         await RunCommandAsync("-m pip install faster-whisper --upgrade --no-warn-script-location --prefer-binary", onOutput);
+
+        // Install sentence-transformers for semantic search
+        onOutput("Installing sentence-transformers for semantic search...");
+        await RunCommandAsync("-m pip install sentence-transformers --upgrade --no-warn-script-location --prefer-binary", onOutput);
+
+        // Install llama-cpp-python with CUDA support for GPU inference
+        // Default PyPI wheel is CPU-only on Windows; use the pre-built CUDA wheel
+        onOutput("Installing llama-cpp-python with CUDA support...");
+        await RunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu128", onOutput);
+
+        // Install huggingface-hub for model downloading
+        onOutput("Installing huggingface-hub...");
+        await RunCommandAsync("-m pip install huggingface-hub --upgrade --no-warn-script-location --prefer-binary", onOutput);
+
+        // Install openai SDK (used for OpenAI and Gemini APIs)
+        onOutput("Installing openai SDK...");
+        await RunCommandAsync("-m pip install openai --upgrade --no-warn-script-location --prefer-binary", onOutput);
+
+        // Install anthropic SDK (for Claude API)
+        onOutput("Installing anthropic SDK...");
+        await RunCommandAsync("-m pip install anthropic --upgrade --no-warn-script-location --prefer-binary", onOutput);
         
         onOutput("Installation complete.");
     }

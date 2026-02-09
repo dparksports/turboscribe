@@ -268,6 +268,7 @@ def run_transcriber(file_path, start, end, model=None, output_dir=None, skip_exi
     mode = "a" if os.path.exists(out_path) else "w"
     with open(out_path, mode, encoding="utf-8") as f:
         f.write(f"--- Transcription [{start:.1f}s - {end:.1f}s] ---\n")
+        f.write(f"Source: {os.path.abspath(file_path)}\n")
         for line in lines:
             f.write(line + "\n")
         f.write("\n")
@@ -380,6 +381,7 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
                 
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(f"--- Full Transcription ({info.duration:.1f}s) ---\n")
+                    f.write(f"Source: {os.path.abspath(file_path)}\n")
                     for line in lines:
                         f.write(line + "\n")
                 print(f"[SAVED] {out_path}")
@@ -449,9 +451,9 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
             
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(f"--- Transcription ({model_name}, {info.duration:.1f}s) ---\n")
+            f.write(f"Source: {os.path.abspath(file_path)}\n")
             for line in lines:
                 f.write(line + "\n")
-        print(f"[SAVED] {out_path}")
         print(f"[SAVED] {out_path}")
     else:
         print(f"[SILENT] {file_path}")
@@ -521,10 +523,296 @@ def run_search_transcripts(directory, query):
     # Output JSON for the app to parse
     print(f"[SEARCH_JSON] {json.dumps(results)}")
 
+
+# =============================================================================
+#   MODE 8: SEMANTIC SEARCH
+#   Uses sentence-transformers to search transcripts by meaning.
+# =============================================================================
+
+def run_semantic_search(directories, query, model_name="all-MiniLM-L6-v2", transcript_dir=None):
+    """
+    MODE 8: SEMANTIC SEARCH
+    Searches transcripts using embedding similarity.
+    Falls back to exact search if sentence-transformers is not installed.
+    """
+    try:
+        from sentence_transformers import SentenceTransformer, util
+    except ImportError:
+        print("[ERROR] sentence-transformers not installed. Run 'Install Libraries' in Settings.")
+        print(json.dumps({"status": "error", "message": "sentence-transformers not installed"}))
+        return
+
+    print(f"[SEMANTIC] Loading embedding model: {model_name}...")
+    try:
+        embed_model = SentenceTransformer(model_name)
+    except Exception as e:
+        print(f"[ERROR] Failed to load model {model_name}: {e}")
+        return
+
+    # Collect all transcript files
+    transcript_files = []
+    search_dirs = [d for d in (directories if isinstance(directories, list) else [directories]) if d and os.path.isdir(d)]
+    if transcript_dir and os.path.isdir(transcript_dir):
+        search_dirs.append(transcript_dir)
+
+    seen = set()
+    for d in search_dirs:
+        for root, _, files in os.walk(d):
+            for f in files:
+                if "_transcript" in f and f.endswith(".txt"):
+                    fpath = os.path.abspath(os.path.join(root, f))
+                    if fpath not in seen:
+                        seen.add(fpath)
+                        transcript_files.append(fpath)
+
+    print(f"[SEMANTIC] Found {len(transcript_files)} transcript files")
+    if not transcript_files:
+        print(json.dumps({"status": "complete", "action": "semantic_search", "results": []}))
+        return
+
+    # Build chunks: each line with a timestamp is a chunk
+    chunks = []  # (file_path, line_text)
+    for fpath in transcript_files:
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("---") and not line.startswith("Source:"):
+                        chunks.append((fpath, line))
+        except Exception:
+            continue
+
+    if not chunks:
+        print("[SEMANTIC] No content found in transcripts")
+        print(json.dumps({"status": "complete", "action": "semantic_search", "results": []}))
+        return
+
+    print(f"[SEMANTIC] Encoding {len(chunks)} chunks...")
+    chunk_texts = [c[1] for c in chunks]
+
+    # Encode in batches to avoid OOM
+    query_embedding = embed_model.encode(query, convert_to_tensor=True)
+    chunk_embeddings = embed_model.encode(chunk_texts, convert_to_tensor=True, batch_size=256, show_progress_bar=False)
+
+    # Compute cosine similarities
+    scores = util.cos_sim(query_embedding, chunk_embeddings)[0]
+
+    # Get top results (threshold > 0.3)
+    results = []
+    for idx in scores.argsort(descending=True)[:100]:
+        score = scores[idx].item()
+        if score < 0.3:
+            break
+        fpath, line = chunks[idx]
+        results.append({
+            "file": os.path.basename(fpath),
+            "full_path": fpath,
+            "score": round(score, 4),
+            "snippet": line
+        })
+
+    print(f"[SEMANTIC] Found {len(results)} relevant matches")
+    for i, r in enumerate(results[:20], 1):
+        print(f"[RESULT] {i}. [{r['score']:.2f}] {r['file']}: {r['snippet'][:100]}")
+
+    print(f"[SEARCH_RESULTS] {json.dumps(results)}")
+
+
+# =============================================================================
+#   MODE 9: ANALYZE (Summarize/Outline)
+#   Uses local LLM via llama-cpp-python or cloud APIs.
+# =============================================================================
+
+def run_analyze(transcript_path, action_type="summarize", provider="local",
+                model_name=None, api_key=None, cloud_model=None):
+    """
+    MODE 9: ANALYZE
+    Summarizes or outlines a transcript using LLM.
+    provider: "local", "gemini", "openai", "claude"
+    """
+    # Read transcript
+    if not os.path.exists(transcript_path):
+        print(f"[ERROR] File not found: {transcript_path}")
+        return
+
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Strip headers
+    lines = [l for l in content.split("\n") if l.strip() and not l.startswith("---") and not l.startswith("Source:")]
+    transcript_text = "\n".join(lines)
+
+    if not transcript_text.strip():
+        print("[ERROR] Transcript is empty")
+        return
+
+    # Truncate if too long (keep first ~8k chars for context window safety)
+    if len(transcript_text) > 8000:
+        transcript_text = transcript_text[:8000] + "\n... (truncated)"
+
+    if action_type == "summarize":
+        prompt = f"""Please provide a concise summary of the following transcript. Include key topics discussed, main points, and any important details. Keep timestamps where relevant.
+
+Transcript:
+{transcript_text}
+
+Summary:"""
+    else:  # outline
+        prompt = f"""Please create a structured outline of the following transcript. Use headings and bullet points. Include timestamps for each section.
+
+Transcript:
+{transcript_text}
+
+Outline:"""
+
+    print(f"[ANALYZE] {action_type.title()} using {provider}...")
+
+    try:
+        if provider == "local":
+            result = _analyze_local(prompt, model_name)
+        elif provider == "gemini":
+            result = _analyze_gemini(prompt, api_key, cloud_model or "gemini-2.0-flash")
+        elif provider == "openai":
+            result = _analyze_openai(prompt, api_key, cloud_model or "gpt-4o")
+        elif provider == "claude":
+            result = _analyze_claude(prompt, api_key, cloud_model or "claude-sonnet-4-20250514")
+        else:
+            print(f"[ERROR] Unknown provider: {provider}")
+            return
+
+        if result:
+            print(f"[ANALYSIS_RESULT] {json.dumps({'file': transcript_path, 'type': action_type, 'result': result})}")
+        else:
+            print("[ERROR] Analysis returned no result")
+    except Exception as e:
+        print(f"[ERROR] Analysis failed: {e}")
+
+
+def _analyze_local(prompt, model_name=None):
+    """Run analysis using llama-cpp-python with a GGUF model."""
+    try:
+        from llama_cpp import Llama
+    except ImportError:
+        print("[ERROR] llama-cpp-python not installed. Run 'Install Libraries' in Settings.")
+        return None
+
+    # Default model repo and file
+    gguf_models = {
+        "llama-3.1-8b": ("bartowski/Meta-Llama-3.1-8B-Instruct-GGUF", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"),
+        "mistral-7b": ("TheBloke/Mistral-7B-Instruct-v0.2-GGUF", "mistral-7b-instruct-v0.2.Q4_K_M.gguf"),
+        "phi-3-mini": ("bartowski/Phi-3.1-mini-4k-instruct-GGUF", "Phi-3.1-mini-4k-instruct-Q4_K_M.gguf"),
+        "qwen2-7b": ("Qwen/Qwen2-7B-Instruct-GGUF", "qwen2-7b-instruct-q4_k_m.gguf"),
+        "gemma-2-2b": ("bartowski/gemma-2-2b-it-GGUF", "gemma-2-2b-it-Q4_K_M.gguf"),
+    }
+
+    if not model_name or model_name not in gguf_models:
+        model_name = "phi-3-mini"  # Default: smallest, fastest
+
+    repo_id, filename = gguf_models[model_name]
+
+    # Download model if needed
+    try:
+        from huggingface_hub import hf_hub_download
+        print(f"[ANALYZE] Downloading/loading {model_name} ({filename})...")
+        model_path = hf_hub_download(repo_id=repo_id, filename=filename)
+    except ImportError:
+        print("[ERROR] huggingface-hub not installed")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Failed to download model: {e}")
+        return None
+
+    print(f"[ANALYZE] Running local inference with {model_name}...")
+    try:
+        llm = Llama(
+            model_path=model_path,
+            n_ctx=4096,
+            n_gpu_layers=-1,  # Use GPU if available
+            verbose=False
+        )
+        output = llm(
+            prompt,
+            max_tokens=2048,
+            temperature=0.3,
+            stop=["\n\n\n"],
+        )
+        return output["choices"][0]["text"].strip()
+    except Exception as e:
+        print(f"[ERROR] Local inference failed: {e}")
+        return None
+
+
+def _analyze_gemini(prompt, api_key, model="gemini-2.0-flash"):
+    """Run analysis using Google Gemini API via openai-compatible endpoint."""
+    if not api_key:
+        print("[ERROR] Gemini API key required")
+        return None
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+            temperature=0.3,
+        )
+        return response.choices[0].message.content
+    except ImportError:
+        print("[ERROR] openai package not installed")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Gemini API call failed: {e}")
+        return None
+
+
+def _analyze_openai(prompt, api_key, model="gpt-4o"):
+    """Run analysis using OpenAI API."""
+    if not api_key:
+        print("[ERROR] OpenAI API key required")
+        return None
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+            temperature=0.3,
+        )
+        return response.choices[0].message.content
+    except ImportError:
+        print("[ERROR] openai package not installed")
+        return None
+    except Exception as e:
+        print(f"[ERROR] OpenAI API call failed: {e}")
+        return None
+
+
+def _analyze_claude(prompt, api_key, model="claude-sonnet-4-20250514"):
+    """Run analysis using Anthropic Claude API."""
+    if not api_key:
+        print("[ERROR] Claude API key required")
+        return None
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+    except ImportError:
+        print("[ERROR] anthropic package not installed")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Claude API call failed: {e}")
+        return None
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()  # Needed for PyInstaller on Windows
     parser = argparse.ArgumentParser(description="Fast Whisper Voice Scanner & Transcriber")
-    parser.add_argument("mode", choices=["scan", "batch_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts"])
+    parser.add_argument("mode", choices=["scan", "batch_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts", "semantic_search", "analyze", "server"])
     parser.add_argument("file", nargs="?", help="Path to media file (for scan/transcribe)")
     parser.add_argument("--dir", help="Directory to batch scan or transcribe")
     parser.add_argument("--start", type=float)
@@ -536,6 +824,12 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", help="Directory to save transcript files")
     parser.add_argument("--skip-existing", action="store_true", help="Skip files if transcript already exists")
     parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto", help="Device to use: auto, cuda, or cpu")
+    parser.add_argument("--embed-model", default="all-MiniLM-L6-v2", help="Sentence-transformers model for semantic search")
+    parser.add_argument("--transcript-dir", help="Directory containing transcript files")
+    parser.add_argument("--provider", choices=["local", "gemini", "openai", "claude"], default="local", help="LLM provider")
+    parser.add_argument("--api-key", help="API key for cloud LLM")
+    parser.add_argument("--cloud-model", help="Cloud model name")
+    parser.add_argument("--analyze-type", choices=["summarize", "outline"], default="summarize", help="Analysis type")
     args = parser.parse_args()
 
     # Apply device override before any model loading
@@ -575,6 +869,18 @@ if __name__ == "__main__":
             print("Error: Provide a search query with --query")
             exit(1)
         run_search_transcripts(directory, args.query)
+    elif args.mode == "semantic_search":
+        directory = args.dir or "."
+        if not args.query:
+            print("Error: Provide a search query with --query")
+            exit(1)
+        run_semantic_search(directory, args.query, model_name=args.embed_model, transcript_dir=args.transcript_dir)
+    elif args.mode == "analyze":
+        if not args.file:
+            print("Error: Provide a transcript file path")
+            exit(1)
+        run_analyze(args.file, action_type=args.analyze_type, provider=args.provider,
+                    model_name=args.model, api_key=args.api_key, cloud_model=args.cloud_model)
     elif args.mode == "server":
         run_server()
 
@@ -637,6 +943,25 @@ def run_server():
                 
                 run_transcriber(file_path, start, end, model=current_model, output_dir=output_dir, skip_existing=skip_existing)
                 print(json.dumps({"status": "complete", "action": "transcribe"}), flush=True) 
+
+            elif action == "semantic_search":
+                query = cmd.get("query", "")
+                directory = cmd.get("directory", ".")
+                embed_model_name = cmd.get("embed_model", "all-MiniLM-L6-v2")
+                transcript_dir = cmd.get("transcript_dir")
+                run_semantic_search(directory, query, model_name=embed_model_name, transcript_dir=transcript_dir)
+                print(json.dumps({"status": "complete", "action": "semantic_search"}), flush=True)
+
+            elif action == "analyze":
+                file_path = cmd.get("file", "")
+                analyze_type = cmd.get("analyze_type", "summarize")
+                provider = cmd.get("provider", "local")
+                model_name_llm = cmd.get("model", None)
+                api_key = cmd.get("api_key", None)
+                cloud_model = cmd.get("cloud_model", None)
+                run_analyze(file_path, action_type=analyze_type, provider=provider,
+                            model_name=model_name_llm, api_key=api_key, cloud_model=cloud_model)
+                print(json.dumps({"status": "complete", "action": "analyze"}), flush=True)
 
             elif action == "exit":
                 break
