@@ -129,6 +129,10 @@ public class MediaFileInfo
     public string BaseIcon => HasModel("base") ? "✅" : "";
     public string TinyEnIcon => HasModel("tiny.en") ? "✅" : "";
     public string TinyIcon => HasModel("tiny") ? "✅" : "";
+
+    // LLM meeting detection confidence (0-100, -1 = not scanned)
+    public int LlmConfidence { get; set; } = -1;
+    public string LlmConfidenceLabel => LlmConfidence >= 0 ? $"{LlmConfidence}" : "";
 }
 
 public partial class MainWindow : Window
@@ -818,6 +822,65 @@ public partial class MainWindow : Window
                     AnalysisStatusLabel.Text = $"{analysisType} complete";
                 }
                 catch { }
+            }
+
+            // Parse meeting detection report
+            if (line.StartsWith("[DETECTION_REPORT] "))
+            {
+                try
+                {
+                    var jsonStr = line["[DETECTION_REPORT] ".Length..];
+                    var results = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(jsonStr);
+                    var sb = new System.Text.StringBuilder();
+                    int meetings = 0, total = 0;
+                    foreach (var item in results.EnumerateArray())
+                    {
+                        total++;
+                        var hasMeeting = item.GetProperty("has_meeting").GetBoolean();
+                        var confidence = item.GetProperty("confidence").GetInt32();
+                        var reason = item.GetProperty("reason").GetString() ?? "";
+                        var filePath = item.GetProperty("file").GetString() ?? "";
+                        var file = System.IO.Path.GetFileName(filePath);
+                        var icon = hasMeeting ? "✅" : "❌";
+                        if (hasMeeting) meetings++;
+                        sb.AppendLine($"{icon} {file}  ({confidence})  {reason}");
+
+                        // Populate LlmConfidence on matching media items
+                        // Transcript files are named like "basename_transcript_model.txt"
+                        // Media files share the same basename
+                        if (_allMediaFiles != null)
+                        {
+                            foreach (var mf in _allMediaFiles)
+                            {
+                                if (file.StartsWith(mf.BaseName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Use the highest confidence from any transcript for this media file
+                                    var score = hasMeeting ? confidence : 0;
+                                    if (score > mf.LlmConfidence) mf.LlmConfidence = score;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    sb.Insert(0, $"=== Meeting Detection: {meetings}/{total} meetings found ===\n\n");
+                    AnalysisOutputBox.Text = sb.ToString();
+                    AnalysisStatusLabel.Text = $"Detection complete — {meetings}/{total} meetings";
+                    FindMeetingsBtn.IsEnabled = true;
+
+                    // Refresh the media list to show updated LLM scores
+                    ApplyMediaFileView();
+                }
+                catch { FindMeetingsBtn.IsEnabled = true; }
+            }
+
+            // Show per-file detection progress
+            if (line.Contains("[MEETING_DETECTED]") || line.Contains("[NO_MEETING]"))
+            {
+                AnalysisStatusLabel.Text = line.Trim();
+            }
+            if (line.StartsWith("[DETECT]"))
+            {
+                AnalysisStatusLabel.Text = line.Trim();
             }
         });
 
@@ -1954,35 +2017,48 @@ public partial class MainWindow : Window
             return;
         }
 
-        var skipExisting = SkipExistingCheck.IsChecked == true;
-        var vadThreshold = _appSettings.VadSensitivity;
+        // Get LLM provider settings from the UI
+        var provider = (LlmProviderCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "local";
+        string? model = null;
+        string? apiKey = null;
+        string? cloudModel = null;
 
-        TranscribeStatusLabel.Text = $"VAD scanning for voice (sensitivity: {vadThreshold:F1})...";
-        TranscribeProgress.Value = 0;
-        TranscribeProgress.IsIndeterminate = true;
+        if (provider == "local")
+        {
+            model = (LocalModelCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        }
+        else
+        {
+            apiKey = ApiKeyBox.Password;
+            cloudModel = CloudModelBox.Text;
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                MessageBox.Show($"Please enter an API key for {provider}.", "API Key Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
 
         FindMeetingsBtn.IsEnabled = false;
+        AnalysisStatusLabel.Text = "Starting LLM meeting detection...";
+        AnalysisOutputBox.Text = "";
 
         try
         {
-            await _runner.RunVadScanAsync(dir, vadThreshold: vadThreshold, reportPath: _reportPath, skipExisting: skipExisting);
-
-            // Load results
-            TryLoadExistingResults();
-            RefreshMediaFileList();
+            await _runner.RunDetectMeetingsAsync(dir, provider,
+                model: model, apiKey: apiKey, cloudModel: cloudModel,
+                transcriptDir: _runner.TranscriptDirectory);
         }
         catch (Exception ex)
         {
-            TranscribeStatusLabel.Text = $"Error: {ex.Message}";
-            MessageBox.Show($"Error during VAD scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            AnalysisStatusLabel.Text = $"Error: {ex.Message}";
+            MessageBox.Show($"Error during meeting detection: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
-            TranscribeProgress.IsIndeterminate = false;
-            TranscribeProgress.Value = 0;
             FindMeetingsBtn.IsEnabled = true;
         }
     }
+
     private void ViewLogBtn_Click(object sender, RoutedEventArgs e)
     {
         var dir = NormalizePath(DirectoryBox.Text);
@@ -2754,6 +2830,8 @@ public partial class MainWindow : Window
                 MediaPlayer.Source = new Uri(mediaPath);
                 MediaPlayer.Volume = MediaVolumeSlider.Value;
                 MediaPlayerPanel.Visibility = Visibility.Visible;
+                MediaControlsGrid.Visibility = Visibility.Visible;
+                MediaNotFoundLabel.Visibility = Visibility.Collapsed;
                 PlayPauseBtn.Content = "▶";
                 _isPlayerPlaying = false;
 
@@ -2768,6 +2846,14 @@ public partial class MainWindow : Window
             {
                 MediaPlayerPanel.Visibility = Visibility.Collapsed;
             }
+        }
+        else if (mediaPath != null)
+        {
+            // Media file not found — show message instead of hiding entirely
+            MediaPlayerPanel.Visibility = Visibility.Visible;
+            MediaControlsGrid.Visibility = Visibility.Collapsed;
+            MediaNotFoundLabel.Visibility = Visibility.Visible;
+            MediaNotFoundLabel.Text = $"⚠ Media file not found: {mediaPath}";
         }
         else
         {

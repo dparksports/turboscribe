@@ -830,13 +830,28 @@ Transcript:
 {transcript_text}
 
 Summary:"""
-    else:  # outline
+    elif action_type == "outline":
         prompt = f"""Please create a structured outline of the following transcript. Use headings and bullet points. Include timestamps for each section.
 
 Transcript:
 {transcript_text}
 
 Outline:"""
+    elif action_type == "detect_meeting":
+        prompt = f"""Analyze this transcript and determine if it contains a real conversation or meeting, or if it is hallucinated/repetitive nonsense from a speech recognition model.
+
+Signs of HALLUCINATION: identical repeated phrases, single-word loops (e.g. "I" repeated many times), no conversational flow, no topic progression, very short repeated segments.
+Signs of REAL MEETING: varied sentences, questions and answers, topic changes, multiple speakers, natural conversation flow, specific details like names/places/plans.
+
+Respond with ONLY this JSON (no other text):
+{{"has_meeting": true, "confidence": 85, "reason": "one sentence explanation"}}
+
+The confidence field is an integer from 0 to 100 where 100 means absolute certainty.
+
+Transcript:
+{transcript_text}
+
+JSON:"""
 
     print(f"[ANALYZE] {action_type.title()} using {provider}...")
 
@@ -982,10 +997,181 @@ def _analyze_claude(prompt, api_key, model="claude-sonnet-4-20250514"):
         print(f"[ERROR] Claude API call failed: {e}")
         return None
 
+
+# =============================================================================
+#   MODE 10: DETECT MEETINGS
+#   Batch-scans transcripts using LLM to classify real vs hallucinated.
+# =============================================================================
+
+def run_detect_meetings(directory, provider="local", model_name=None,
+                        api_key=None, cloud_model=None, transcript_dir=None):
+    """
+    MODE 10: DETECT MEETINGS
+    Scans all transcript files and uses LLM to determine if each
+    contains a real meeting/conversation or is hallucinated.
+    """
+    # Collect transcript files
+    transcript_files = []
+    search_dirs = []
+    if directory and os.path.isdir(directory):
+        search_dirs.append(directory)
+    if transcript_dir and os.path.isdir(transcript_dir):
+        search_dirs.append(transcript_dir)
+
+    seen = set()
+    for d in search_dirs:
+        for root, _, files in os.walk(d):
+            for f in files:
+                if "_transcript" in f and f.endswith(".txt"):
+                    fpath = os.path.abspath(os.path.join(root, f))
+                    if fpath not in seen:
+                        seen.add(fpath)
+                        transcript_files.append(fpath)
+
+    total = len(transcript_files)
+    print(f"[DETECT] Found {total} transcript files to analyze")
+    if total == 0:
+        print(json.dumps({"status": "complete", "action": "detect_meetings", "results": []}))
+        return
+
+    results = []
+    meetings_found = 0
+
+    for i, fpath in enumerate(transcript_files, 1):
+        fname = os.path.basename(fpath)
+        print(f"\n[{i}/{total}] Analyzing: {fname}")
+
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Strip headers
+            lines = [l for l in content.split("\n")
+                     if l.strip() and not l.startswith("---") and not l.startswith("Source:")]
+            transcript_text = "\n".join(lines)
+
+            if not transcript_text.strip():
+                print(f"  [SKIP] Empty transcript")
+                results.append({"file": fpath, "has_meeting": False,
+                                "confidence": 100, "reason": "Empty transcript"})
+                continue
+
+            # Quick heuristic pre-filter: if >80% of lines are identical, skip LLM
+            line_list = [l.strip() for l in lines if l.strip()]
+            if len(line_list) > 5:
+                # Extract text after timestamp brackets
+                texts = []
+                for l in line_list:
+                    bracket_end = l.rfind("]")
+                    if bracket_end >= 0:
+                        texts.append(l[bracket_end+1:].strip())
+                    else:
+                        texts.append(l)
+                unique_ratio = len(set(texts)) / len(texts) if texts else 0
+                if unique_ratio < 0.15:
+                    print(f"  [NO_MEETING] Repetition ratio {unique_ratio:.2f} — clearly hallucinated")
+                    results.append({"file": fpath, "has_meeting": False,
+                                    "confidence": 99, "reason": f"Extreme repetition (unique ratio: {unique_ratio:.2f})"})
+                    continue
+
+            # Truncate for LLM context window (detection needs less than summary)
+            if len(transcript_text) > 4000:
+                transcript_text = transcript_text[:4000] + "\n... (truncated)"
+
+            # Use run_analyze infrastructure
+            prompt = f"""Analyze this transcript and determine if it contains a real conversation or meeting, or if it is hallucinated/repetitive nonsense from a speech recognition model.
+
+Signs of HALLUCINATION: identical repeated phrases, single-word loops (e.g. "I" repeated many times), no conversational flow, no topic progression, very short repeated segments.
+Signs of REAL MEETING: varied sentences, questions and answers, topic changes, multiple speakers, natural conversation flow, specific details like names/places/plans.
+
+Respond with ONLY this JSON (no other text):
+{{"has_meeting": true, "confidence": 85, "reason": "one sentence explanation"}}
+
+The confidence field is an integer from 0 to 100 where 100 means absolute certainty.
+
+Transcript:
+{transcript_text}
+
+JSON:"""
+
+            # Call LLM
+            if provider == "local":
+                result_text = _analyze_local(prompt, model_name)
+            elif provider == "gemini":
+                result_text = _analyze_gemini(prompt, api_key, cloud_model or "gemini-2.0-flash")
+            elif provider == "openai":
+                result_text = _analyze_openai(prompt, api_key, cloud_model or "gpt-4o")
+            elif provider == "claude":
+                result_text = _analyze_claude(prompt, api_key, cloud_model or "claude-sonnet-4-20250514")
+            else:
+                print(f"  [ERROR] Unknown provider: {provider}")
+                continue
+
+            if not result_text:
+                print(f"  [ERROR] LLM returned no result")
+                results.append({"file": fpath, "has_meeting": False,
+                                "confidence": 0, "reason": "LLM returned no result"})
+                continue
+
+            # Parse JSON from LLM response
+            try:
+                # Try to extract JSON from response (LLM may add extra text)
+                json_start = result_text.find("{")
+                json_end = result_text.rfind("}") + 1
+                if json_start >= 0 and json_end > json_start:
+                    parsed = json.loads(result_text[json_start:json_end])
+                else:
+                    parsed = json.loads(result_text)
+
+                has_meeting = parsed.get("has_meeting", False)
+                confidence = int(parsed.get("confidence", 50))
+                # Normalize if LLM returned 0.0-1.0 instead of 0-100
+                if isinstance(parsed.get("confidence"), float) and parsed["confidence"] <= 1.0:
+                    confidence = int(parsed["confidence"] * 100)
+                reason = parsed.get("reason", "")
+            except json.JSONDecodeError:
+                # Fallback: look for keywords in response
+                has_meeting = "true" in result_text.lower() and "has_meeting" in result_text.lower()
+                confidence = 50
+                reason = f"Could not parse JSON: {result_text[:100]}"
+
+            tag = "MEETING_DETECTED" if has_meeting else "NO_MEETING"
+            print(f"  [{tag}] confidence={confidence} — {reason}")
+
+            if has_meeting:
+                meetings_found += 1
+
+            results.append({
+                "file": fpath,
+                "has_meeting": has_meeting,
+                "confidence": confidence,
+                "reason": reason
+            })
+
+        except Exception as e:
+            print(f"  [ERROR] {e}")
+            results.append({"file": fpath, "has_meeting": False,
+                            "confidence": 0, "reason": str(e)})
+
+    print(f"\n{'='*60}")
+    print(f"MEETING DETECTION COMPLETE")
+    print(f"{'='*60}")
+    print(f"Total transcripts: {total}")
+    print(f"Meetings found: {meetings_found}")
+    print(f"Hallucinated: {total - meetings_found}")
+
+    if meetings_found > 0:
+        print(f"\n--- Files with Real Meetings ---")
+        for r in results:
+            if r["has_meeting"]:
+                print(f"  ✅ {os.path.basename(r['file'])} ({r['confidence']}%) — {r['reason']}")
+
+    print(f"\n[DETECTION_REPORT] {json.dumps(results)}")
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()  # Needed for PyInstaller on Windows
     parser = argparse.ArgumentParser(description="Fast Whisper Voice Scanner & Transcriber")
-    parser.add_argument("mode", choices=["scan", "batch_scan", "vad_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts", "semantic_search", "analyze", "server"])
+    parser.add_argument("mode", choices=["scan", "batch_scan", "vad_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts", "semantic_search", "analyze", "detect_meetings", "server"])
     parser.add_argument("file", nargs="?", help="Path to media file (for scan/transcribe)")
     parser.add_argument("--dir", help="Directory to batch scan or transcribe")
     parser.add_argument("--start", type=float)
@@ -1002,7 +1188,7 @@ if __name__ == "__main__":
     parser.add_argument("--provider", choices=["local", "gemini", "openai", "claude"], default="local", help="LLM provider")
     parser.add_argument("--api-key", help="API key for cloud LLM")
     parser.add_argument("--cloud-model", help="Cloud model name")
-    parser.add_argument("--analyze-type", choices=["summarize", "outline"], default="summarize", help="Analysis type")
+    parser.add_argument("--analyze-type", choices=["summarize", "outline", "detect_meeting"], default="summarize", help="Analysis type")
     parser.add_argument("--vad-threshold", type=float, default=0.5, help="Silero VAD sensitivity threshold (0.0-1.0, lower = more sensitive)")
     args = parser.parse_args()
 
@@ -1061,6 +1247,11 @@ if __name__ == "__main__":
             exit(1)
         run_analyze(args.file, action_type=args.analyze_type, provider=args.provider,
                     model_name=args.model, api_key=args.api_key, cloud_model=args.cloud_model)
+    elif args.mode == "detect_meetings":
+        directory = args.dir or args.file or "."
+        run_detect_meetings(directory, provider=args.provider,
+                           model_name=args.model, api_key=args.api_key,
+                           cloud_model=args.cloud_model, transcript_dir=args.transcript_dir)
     elif args.mode == "server":
         run_server()
 
@@ -1151,6 +1342,18 @@ def run_server():
                 run_analyze(file_path, action_type=analyze_type, provider=provider,
                             model_name=model_name_llm, api_key=api_key, cloud_model=cloud_model)
                 print(json.dumps({"status": "complete", "action": "analyze"}), flush=True)
+
+            elif action == "detect_meetings":
+                directory = cmd.get("directory", ".")
+                provider = cmd.get("provider", "local")
+                model_name_llm = cmd.get("model", None)
+                api_key = cmd.get("api_key", None)
+                cloud_model = cmd.get("cloud_model", None)
+                transcript_dir = cmd.get("transcript_dir", None)
+                run_detect_meetings(directory, provider=provider,
+                                    model_name=model_name_llm, api_key=api_key,
+                                    cloud_model=cloud_model, transcript_dir=transcript_dir)
+                print(json.dumps({"status": "complete", "action": "detect_meetings"}), flush=True)
 
             elif action == "exit":
                 break

@@ -116,10 +116,10 @@
                             </StackPanel>
                             <!-- Find Meetings group -->
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                <Button x:Name="FindMeetingsBtn" Content="🔍 Scan for Voice" 
+                                <Button x:Name="FindMeetingsBtn" Content="🤖 Detect Meetings" 
                                         Style="{StaticResource AccentButton}"
                                         Click="FindMeetingsBtn_Click"
-                                        ToolTip="Fast VAD scan to find files with voice/speech. No Whisper model needed."/>
+                                        ToolTip="Use LLM to classify existing transcripts as real meetings vs hallucinations"/>
                                 <TextBlock x:Name="TranscribeCountLabel" VerticalAlignment="Center"
                                            Foreground="{StaticResource TextDimBrush}" FontSize="12"
                                            Margin="12,0,0,0" Text="Set directory and click Transcribe"/>
@@ -254,6 +254,14 @@
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <TextBlock Text="{Binding VoiceDurationLabel}" Foreground="{StaticResource TextDimBrush}"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Width="38">
+                                                <GridViewColumnHeader Content="🤖" Click="MediaFileList_HeaderClick" ToolTip="LLM meeting detection confidence (0-100)"/>
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding LlmConfidenceLabel}" Foreground="{StaticResource TextDimBrush}"/>
                                                     </DataTemplate>
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
@@ -578,12 +586,16 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <MediaElement x:Name="MediaPlayer" Grid.Row="0" Height="0"
+                                    <TextBlock x:Name="MediaNotFoundLabel" Grid.Row="0"
+                                               Foreground="#FF8866" FontSize="11" Padding="4,2"
+                                               Visibility="Collapsed"/>
+                                    <MediaElement x:Name="MediaPlayer" Grid.Row="1" Height="0"
                                                   LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                   MediaOpened="MediaPlayer_MediaOpened"
                                                   MediaEnded="MediaPlayer_MediaEnded"/>
-                                    <Grid Grid.Row="1">
+                                    <Grid x:Name="MediaControlsGrid" Grid.Row="2">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
