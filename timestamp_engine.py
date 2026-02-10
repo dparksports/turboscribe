@@ -301,7 +301,7 @@ def run_extract_timestamps(file_path, num_frames=5, crop_ratio=0.08):
     return output
 
 
-def run_batch_rename(folder_path, crop_ratio=0.08):
+def run_batch_rename(folder_path, crop_ratio=0.08, recursive=False, prefix=None):
     """
     Process all .mp4 files in a folder, extracting start/end timestamps
     for batch renaming. Uses only 2 frames per video for speed.
@@ -312,12 +312,23 @@ def run_batch_rename(folder_path, crop_ratio=0.08):
         print(f"[ERROR] Folder not found: {folder_path}")
         return
 
-    mp4_files = sorted(glob.glob(os.path.join(folder_path, "*.mp4")))
+    if recursive:
+        mp4_files = sorted(glob.glob(os.path.join(folder_path, "**", "*.mp4"), recursive=True))
+        scope = f"{folder_path} (including subfolders)"
+    else:
+        mp4_files = sorted(glob.glob(os.path.join(folder_path, "*.mp4")))
+        scope = folder_path
+
+    # Filter by prefix if specified
+    if prefix:
+        mp4_files = [f for f in mp4_files if os.path.basename(f).lower().startswith(prefix.lower())]
+        scope += f" [prefix: {prefix}]"
+
     if not mp4_files:
-        print(f"[ERROR] No .mp4 files found in {folder_path}")
+        print(f"[ERROR] No .mp4 files found in {scope}")
         return
 
-    print(f"[BATCH] Found {len(mp4_files)} video(s) in {folder_path}")
+    print(f"[BATCH] Found {len(mp4_files)} video(s) in {scope}")
 
     # Pre-load VLM once for all videos
     model, processor = _load_vlm()
@@ -390,12 +401,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract burned-in timestamps from video files using Qwen2.5-VL-7B")
     parser.add_argument("file", nargs="?", help="Path to video file")
     parser.add_argument("--batch-folder", help="Process all .mp4 files in a folder (batch rename mode)")
+    parser.add_argument("--recursive", action="store_true", help="Include subfolders when using --batch-folder")
+    parser.add_argument("--prefix", help="Only process files starting with this prefix (e.g., 'reo')")
     parser.add_argument("--num-frames", type=int, default=5, help="Number of frames to extract (default: 5)")
     parser.add_argument("--crop-ratio", type=float, default=0.08, help="Fraction of frame height to crop from top (default: 0.08)")
     args = parser.parse_args()
 
     if args.batch_folder:
-        run_batch_rename(args.batch_folder, crop_ratio=args.crop_ratio)
+        run_batch_rename(args.batch_folder, crop_ratio=args.crop_ratio, recursive=args.recursive, prefix=args.prefix)
     elif args.file:
         run_extract_timestamps(args.file, num_frames=args.num_frames, crop_ratio=args.crop_ratio)
     else:

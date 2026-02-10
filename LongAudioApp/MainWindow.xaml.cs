@@ -134,6 +134,7 @@ public class MediaFileInfo
 public partial class MainWindow : Window
 {
     private PythonRunner _runner = null!;
+    private PythonRunner _timestampRunner = null!;
     private ScanReport? _report;
     private readonly string _scriptDir;
     private readonly string _reportPath;
@@ -152,6 +153,7 @@ public partial class MainWindow : Window
     {
         base.OnClosed(e);
         _runner?.Dispose();
+        _timestampRunner?.Dispose();
         _gpuTimer?.Stop();
     }
 
@@ -188,6 +190,7 @@ public partial class MainWindow : Window
         _reportPath = Path.Combine(appDataDir, "voice_scan_results.json");
         
         _runner = new PythonRunner(_scriptDir);
+        _timestampRunner = new PythonRunner(_scriptDir);
 
         WireUpRunner();
         SetupTranscriptContextMenu();
@@ -250,6 +253,7 @@ public partial class MainWindow : Window
 
         // Populate drive list
         RefreshDrives();
+        RefreshBatchDrives();
 
         // Defer heavy I/O and subprocess work until after window renders
         ContentRendered += OnContentRendered;
@@ -3295,11 +3299,11 @@ public partial class MainWindow : Window
             });
         };
 
-        _runner.OutputReceived += outputHandler;
+        _timestampRunner.OutputReceived += outputHandler;
 
         try
         {
-            await _runner.RunExtractTimestampsAsync(_selectedTimestampVideoPath, numFrames);
+            await _timestampRunner.RunExtractTimestampsAsync(_selectedTimestampVideoPath, numFrames);
 
             // Update UI with results
             TimestampResultsGrid.ItemsSource = results;
@@ -3315,7 +3319,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _runner.OutputReceived -= outputHandler;
+            _timestampRunner.OutputReceived -= outputHandler;
             ExtractTimestampsBtn.IsEnabled = true;
             TimestampBrowseBtn.IsEnabled = true;
             CancelTimestampBtn.IsEnabled = false;
@@ -3325,7 +3329,7 @@ public partial class MainWindow : Window
 
     private void CancelTimestampBtn_Click(object sender, RoutedEventArgs e)
     {
-        _runner.Cancel();
+        _timestampRunner.Cancel();
         TimestampStatusLabel.Text = "Cancelled";
         TimestampProgress.IsIndeterminate = false;
         TimestampProgress.Value = 0;
@@ -3339,28 +3343,79 @@ public partial class MainWindow : Window
     private string? _batchFolderPath;
     private List<BatchRenameItem> _batchItems = new();
 
-    private void BatchFolderBtn_Click(object sender, RoutedEventArgs e)
+    private void RefreshBatchDrives()
     {
-        // Use WPF OpenFileDialog — user selects any .mp4 in the target folder
-        var dlg = new Microsoft.Win32.OpenFileDialog
+        BatchDriveCombo.Items.Clear();
+        foreach (var drive in DriveInfo.GetDrives())
         {
-            Title = "Select any .mp4 file in the target folder",
-            Filter = "Video Files|*.mp4",
-            Multiselect = false
-        };
-        if (dlg.ShowDialog() == true)
-        {
-            var folder = Path.GetDirectoryName(dlg.FileName) ?? "";
-            _batchFolderPath = folder;
-            BatchFolderLabel.Text = folder;
-            BatchScanBtn.IsEnabled = true;
-            BatchRenameBtn.IsEnabled = false;
-            BatchRenameGrid.ItemsSource = null;
-            _batchItems.Clear();
-
-            var mp4Count = Directory.GetFiles(folder, "*.mp4").Length;
-            BatchStatusLabel.Text = $"Found {mp4Count} .mp4 files — click Scan Timestamps";
+            try
+            {
+                if (!drive.IsReady) continue;
+                var emoji = drive.DriveType switch
+                {
+                    DriveType.Fixed => "💾",
+                    DriveType.Removable => "🔌",
+                    DriveType.Network => "🌐",
+                    _ => "📁"
+                };
+                var label = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? "" : $" ({drive.VolumeLabel})";
+                var freeGB = drive.AvailableFreeSpace / (1024.0 * 1024 * 1024);
+                var totalGB = drive.TotalSize / (1024.0 * 1024 * 1024);
+                var item = new ComboBoxItem
+                {
+                    Content = $"{emoji} {drive.Name.TrimEnd('\\')}{label}  [{freeGB:F0}/{totalGB:F0} GB]",
+                    Tag = drive.RootDirectory.FullName
+                };
+                BatchDriveCombo.Items.Add(item);
+            }
+            catch { }
         }
+    }
+
+    private void BatchDriveCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateBatchFolder();
+    }
+
+    private void BatchFolderPath_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        UpdateBatchFolder();
+    }
+
+    private void UpdateBatchFolder()
+    {
+        string? drivePath = null;
+        if (BatchDriveCombo.SelectedItem is ComboBoxItem selected)
+            drivePath = selected.Tag?.ToString();
+
+        if (string.IsNullOrEmpty(drivePath))
+        {
+            _batchFolderPath = null;
+            BatchScanBtn.IsEnabled = false;
+            BatchRenameBtn.IsEnabled = false;
+            BatchStatusLabel.Text = "Select a drive to begin";
+            return;
+        }
+
+        var subfolder = BatchSubfolderPath.Text.Trim();
+        var fullPath = string.IsNullOrEmpty(subfolder) ? drivePath : Path.Combine(drivePath, subfolder);
+
+        if (!Directory.Exists(fullPath))
+        {
+            _batchFolderPath = null;
+            BatchScanBtn.IsEnabled = false;
+            BatchStatusLabel.Text = $"Folder not found: {fullPath}";
+            return;
+        }
+
+        _batchFolderPath = fullPath;
+        BatchRenameBtn.IsEnabled = false;
+        BatchRenameGrid.ItemsSource = null;
+        _batchItems.Clear();
+
+        var scope = BatchRecursiveCheck.IsChecked == true ? " (including subfolders)" : "";
+        BatchStatusLabel.Text = $"Ready to scan {fullPath}{scope} — click Scan & Rename";
+        BatchScanBtn.IsEnabled = true;
     }
 
     private async void BatchScanBtn_Click(object sender, RoutedEventArgs e)
@@ -3369,7 +3424,7 @@ public partial class MainWindow : Window
 
         // UI state
         BatchScanBtn.IsEnabled = false;
-        BatchFolderBtn.IsEnabled = false;
+        BatchDriveCombo.IsEnabled = false;
         BatchRenameBtn.IsEnabled = false;
         BatchCancelBtn.IsEnabled = true;
         BatchProgress.Value = 0;
@@ -3433,6 +3488,31 @@ public partial class MainWindow : Window
                             EndTimestamp = endTs,
                             Status = (startTs != null && endTs != null) ? "Ready" : "⚠ Missing"
                         };
+
+                        // Auto-rename if checked and timestamps extracted
+                        if (BatchAutoRenameCheck.IsChecked == true && item.Status == "Ready")
+                        {
+                            try
+                            {
+                                var dir = Path.GetDirectoryName(item.FullPath) ?? ".";
+                                var newPath = Path.Combine(dir, item.NewName);
+                                if (File.Exists(newPath))
+                                {
+                                    item.Status = "⚠ Exists";
+                                }
+                                else
+                                {
+                                    File.Move(item.FullPath, newPath);
+                                    item.FullPath = newPath;
+                                    item.Status = "✅ Renamed";
+                                }
+                            }
+                            catch (Exception renameEx)
+                            {
+                                item.Status = $"❌ {renameEx.Message}";
+                            }
+                        }
+
                         _batchItems.Add(item);
                         BatchRenameGrid.ItemsSource = null;
                         BatchRenameGrid.ItemsSource = _batchItems;
@@ -3450,16 +3530,25 @@ public partial class MainWindow : Window
             });
         };
 
-        _runner.OutputReceived += outputHandler;
+        _timestampRunner.OutputReceived += outputHandler;
 
         try
         {
-            await _runner.RunBatchTimestampsAsync(_batchFolderPath);
+            var prefix = BatchPrefixFilter.Text.Trim();
+            await _timestampRunner.RunBatchTimestampsAsync(
+                _batchFolderPath,
+                BatchRecursiveCheck.IsChecked == true,
+                string.IsNullOrEmpty(prefix) ? null : prefix);
 
             BatchProgress.IsIndeterminate = false;
             BatchProgress.Value = BatchProgress.Maximum;
+            var renamedCount = _batchItems.Count(i => i.Status == "✅ Renamed");
             var readyCount = _batchItems.Count(i => i.Status == "Ready");
-            BatchStatusLabel.Text = $"Scan complete — {readyCount}/{_batchItems.Count} files ready to rename";
+            var failCount = _batchItems.Count(i => i.Status.StartsWith("⚠") || i.Status.StartsWith("❌"));
+            if (renamedCount > 0)
+                BatchStatusLabel.Text = $"Complete — {renamedCount} renamed, {readyCount} pending, {failCount} issues";
+            else
+                BatchStatusLabel.Text = $"Scan complete — {readyCount}/{_batchItems.Count} files ready to rename";
             BatchRenameBtn.IsEnabled = readyCount > 0;
         }
         catch (Exception ex)
@@ -3468,9 +3557,9 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _runner.OutputReceived -= outputHandler;
+            _timestampRunner.OutputReceived -= outputHandler;
             BatchScanBtn.IsEnabled = true;
-            BatchFolderBtn.IsEnabled = true;
+            BatchDriveCombo.IsEnabled = true;
             BatchCancelBtn.IsEnabled = false;
             BatchProgress.IsIndeterminate = false;
         }
@@ -3478,12 +3567,12 @@ public partial class MainWindow : Window
 
     private void BatchCancelBtn_Click(object sender, RoutedEventArgs e)
     {
-        _runner.Cancel();
+        _timestampRunner.Cancel();
         BatchStatusLabel.Text = "Cancelled";
         BatchProgress.IsIndeterminate = false;
         BatchProgress.Value = 0;
         BatchScanBtn.IsEnabled = true;
-        BatchFolderBtn.IsEnabled = true;
+        BatchDriveCombo.IsEnabled = true;
         BatchCancelBtn.IsEnabled = false;
     }
 

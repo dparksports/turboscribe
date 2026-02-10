@@ -504,13 +504,19 @@ public class PythonRunner : IDisposable
         await proc.WaitForExitAsync();
     }
 
-    public async Task RunBatchTimestampsAsync(string folderPath)
+    public async Task RunBatchTimestampsAsync(string folderPath, bool recursive = false, string? prefix = null)
     {
         var tsScriptPath = Path.Combine(Path.GetDirectoryName(_scriptPath)!, "timestamp_engine.py");
         var tsVenvPython = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "timestamp_venv", "Scripts", "python.exe");
         var pythonToUse = File.Exists(tsVenvPython) ? tsVenvPython : _pythonPath;
 
-        var arguments = $"\"{tsScriptPath}\" --batch-folder \"{folderPath}\"";
+        // Strip trailing backslash to prevent it escaping the closing quote (e.g. "E:\" → E:" breaks parsing)
+        var safePath = folderPath.TrimEnd('\\');
+        var arguments = $"\"{tsScriptPath}\" --batch-folder \"{safePath}\"";
+        if (recursive)
+            arguments += " --recursive";
+        if (!string.IsNullOrWhiteSpace(prefix))
+            arguments += $" --prefix \"{prefix}\"";
 
         var psi = new ProcessStartInfo
         {

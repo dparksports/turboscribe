@@ -933,19 +933,41 @@
                             <TextBlock Text="Select a folder of videos to extract timestamps and rename files to YYYYMMDD_HHMMSS-HHMMSS_location.mp4"
                                        Foreground="{StaticResource TextDimBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal">
-                                <Button x:Name="BatchFolderBtn" Content="📂 Select Folder"
-                                        Style="{StaticResource AccentButton}"
-                                        Click="BatchFolderBtn_Click" FontSize="12" Padding="12,6"
-                                        ToolTip="Select a folder containing .mp4 video files"/>
-                                <TextBlock x:Name="BatchFolderLabel" Text="No folder selected"
-                                           VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}"
-                                           FontSize="12" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
-                                           MaxWidth="400"/>
+                                <TextBlock Text="Drive:" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12" Margin="0,0,6,0"/>
+                                <ComboBox x:Name="BatchDriveCombo" Width="250" FontSize="12"
+                                          SelectionChanged="BatchDriveCombo_SelectionChanged"
+                                          Background="{StaticResource SurfaceBrush}"
+                                          Foreground="{StaticResource TextBrush}"
+                                          ToolTip="Select a drive to scan for .mp4 video files"/>
+                                <TextBlock Text="Subfolder:" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextDimBrush}" FontSize="11" Margin="12,0,6,0"/>
+                                <TextBox x:Name="BatchSubfolderPath" Text=""
+                                         VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
+                                         Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         FontSize="12" Width="200" Padding="6,4"
+                                         ToolTip="Optional subfolder path (leave empty to scan entire drive)"
+                                         TextChanged="BatchFolderPath_TextChanged"/>
+                                <TextBlock Text="Prefix:" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextDimBrush}" FontSize="11" Margin="12,0,6,0"/>
+                                <TextBox x:Name="BatchPrefixFilter" Text="reo"
+                                         VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
+                                         Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         FontSize="12" Width="80" Padding="6,4"
+                                         ToolTip="Only rename files starting with this prefix (leave empty for all files)"/>
+                                <CheckBox x:Name="BatchRecursiveCheck" Content="Include Subfolders"
+                                          VerticalAlignment="Center" Margin="12,0,0,0"
+                                          Foreground="{StaticResource TextBrush}" FontSize="11"
+                                          IsChecked="True" ToolTip="Scan all .mp4 files in subfolders recursively"/>
+                                <CheckBox x:Name="BatchAutoRenameCheck" Content="Auto Rename"
+                                          VerticalAlignment="Center" Margin="12,0,0,0"
+                                          Foreground="{StaticResource TextBrush}" FontSize="11"
+                                          IsChecked="True" ToolTip="Automatically rename each file as soon as timestamps are extracted"/>
                                 <Rectangle Width="1" Height="20" Fill="{StaticResource BorderBrush}" Margin="16,0,12,0"/>
-                                <Button x:Name="BatchScanBtn" Content="🔍 Scan Timestamps"
+                                <Button x:Name="BatchScanBtn" Content="🔍 Scan &amp; Rename"
                                         Style="{StaticResource AccentButton}"
                                         Click="BatchScanBtn_Click" IsEnabled="False" FontSize="12" Padding="12,6"
-                                        ToolTip="Extract start/end timestamps from all videos in the folder"/>
+                                        ToolTip="Extract start/end timestamps from all videos and optionally rename"/>
                                 <Button x:Name="BatchRenameBtn" Content="✏️ Rename Files"
                                         Style="{StaticResource AccentButton}"
                                         Click="BatchRenameBtn_Click" IsEnabled="False" FontSize="12" Padding="12,6"
