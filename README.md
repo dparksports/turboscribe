@@ -2,39 +2,51 @@
 
 **Transcribe entire drives of audio and video — locally, privately, and for free.**
 
-TurboScribe is a GPU-accelerated desktop app that uses **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** — a CTranslate2-powered engine that runs **up to 4x faster** than standard Whisper — to transcribe meetings, interviews, voice memos, and lectures entirely on your machine. Choose from multiple Whisper models (tiny, base, small, medium, large-v3, turbo) depending on your speed/accuracy needs. No cloud. No subscriptions. No data ever leaves your computer.
-
-> 🌟 **Exceptional Noise Handling** — Works great with noisy outdoor recordings: car traffic, wind, lawn mowers, barking dogs.
+TurboScribe is a Windows desktop app powered by [faster-whisper](https://github.com/SYSTRAN/faster-whisper) that transcribes your media files entirely on your machine. No cloud services, no subscriptions, and no data ever leaves your computer. Point it at any drive — local, USB, or network — and let it process everything automatically.
 
 ---
 
 ## 📥 Download
 
-**[⬇ Download TurboScribe v1.6.0 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v1.6.0/TurboScribe-v1.6.0.zip)**
+**[⬇ Download TurboScribe v2.0.0 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v2.0.0/TurboScribe-v2.0.0.zip)**
 
 Extract the zip → run `TurboScribe.exe` → done.
 
-**Requires:** Windows 10/11, NVIDIA GPU with CUDA. Python is installed automatically on first launch.
+**Requires:** Windows 10/11 with .NET 8 Runtime. NVIDIA GPU recommended for fast transcription.
 
 ---
 
-## 📸 Screenshot
+## ✨ Features
 
-![TurboScribe v1.6.0](turboscribe_dark_ui_v160_1770686953675.png)
+### Transcription
+- **GPU-accelerated** via faster-whisper and CTranslate2 — up to 4× faster than standard Whisper
+- **Multiple Whisper models** — tiny, base, small, medium, large-v1/v2/v3, turbo
+- **English-only filter** — toggle to show only English-optimized models
+- **Re-transcribe** — re-run any file with a different model and compare versions side-by-side
+- **Batch processing** — check entire drives and transcribe everything in one click
+- **Skip existing** — automatically skip files that already have transcripts
+- **Exceptional noise handling** — works great with noisy outdoor recordings
 
----
+### Integrated Media Player
+- **Embedded playback** — play audio/video directly inside the app
+- **Bidirectional sync** — click a transcript line to seek the player, or scrub the player to highlight the matching line
+- **Timeline scrubbing** — seek slider, play/pause, stop, and volume controls
 
-## Why TurboScribe?
+### AI Analysis
+- **Summarize & Outline** — generate summaries or outlines for any transcript
+- **Local or Cloud LLMs** — use local models (LLaMA, Mistral, Phi-3, Qwen2, Gemma) or cloud APIs (Gemini, OpenAI, Claude)
+- **Save analysis** — export summaries and outlines to file
 
-| | |
-|---|---|
-| 🔒 **100% Private** | All processing stays on your machine. Nothing is uploaded anywhere. |
-| 💾 **Drive Selector** | Check entire drives (local, USB, network) and transcribe everything at once. |
-| ⚡ **Up to 4x Faster** | GPU-accelerated via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and CTranslate2 — way faster than standard Whisper. |
-| 🎛️ **Multiple Models** | Choose from tiny, base, small, medium, large-v3, or turbo. Re-transcribe and compare versions side-by-side. |
-| 🔎 **Search Everything** | Keyword search + semantic search across all your transcripts. |
-| 📝 **AI Summaries** | Summarize or outline any transcript — inline in the Analysis tab, or via right-click. Local or cloud LLMs. |
-| 🆓 **Free & Open Source** | No limits, no subscriptions, fully auditable code. |
+### Semantic Search
+- **Keyword search** — exact-match search across all transcripts
+- **Semantic search** — find content by meaning using sentence-transformers
+- **Multiple embedding models** — MiniLM, mpnet, GTE, Qwen3, Gemma
+
+### UI & Design
+- **Dark theme** — polished dark UI with teal accent colors
+- **Rounded section cards** — clean visual grouping with rounded borders
+- **Tabbed interface** — Transcribe, Semantic Search, Log, and Settings tabs
+- **Context menus** — right-click actions on transcript files
 
 ---
 
@@ -42,11 +54,13 @@ Extract the zip → run `TurboScribe.exe` → done.
 
 1. Download and extract the [latest release](https://github.com/dparksports/turboscribe/releases/latest)
 2. Run `TurboScribe.exe`
-3. Go to **Settings → Install AI Libraries** (one-time setup)
+3. Go to **Settings → Install AI Libraries** (one-time, installs Python + faster-whisper)
 4. Check the drives you want to scan
 5. Click **▶ Transcribe All Files**
 
-### Build from Source
+---
+
+## 🛠️ Build from Source
 
 ```bash
 git clone https://github.com/dparksports/turboscribe.git
@@ -56,14 +70,14 @@ dotnet run --project LongAudioApp
 
 ---
 
-## 🛠️ Tech Stack
+## 🔧 Tech Stack
 
 | Component | Technology |
 |---|---|
-| Transcription | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (tiny → large-v3, turbo, CUDA) |
+| Transcription | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) with CUDA acceleration |
 | Voice Detection | Silero VAD |
-| Semantic Search | sentence-transformers |
-| AI Analysis | Local (Phi-3, LLaMA) or Cloud (Gemini, OpenAI, Claude) |
+| Semantic Search | sentence-transformers (MiniLM, mpnet, GTE, Qwen3, Gemma) |
+| AI Analysis | Local (LLaMA, Mistral, Phi-3, Qwen2, Gemma) or Cloud (Gemini, OpenAI, Claude) |
 | Desktop App | WPF, .NET 8, C# |
 
 ---
