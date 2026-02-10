@@ -309,9 +309,56 @@ public class PythonRunner : IDisposable
 
     public async Task RunSemanticSearchAsync(string directory, string query, string embedModel, string transcriptDir)
     {
+        // Run semantic search in its own independent process so it works even while transcription is running
         var safeDir = directory.TrimEnd('\\', '/');
         var cmdArgs = $"--dir \"{safeDir}\" --query \"{query}\" --embed-model {embedModel} --transcript-dir \"{transcriptDir}\"";
-        await RunProcessAsync(BuildArgs("semantic_search", cmdArgs));
+        var arguments = BuildArgs("semantic_search", cmdArgs);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _pythonPath,
+            Arguments = arguments,
+            WorkingDirectory = Path.GetDirectoryName(_scriptPath),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8
+        };
+        psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+        var pyDir = Path.GetDirectoryName(_pythonPath);
+        if (!string.IsNullOrEmpty(pyDir))
+        {
+            var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            psi.EnvironmentVariables["PATH"] = pyDir + ";" + envPath;
+        }
+
+        using var proc = new Process { StartInfo = psi };
+        proc.Start();
+
+        // Read output in parallel (fires same events as main runner)
+        var stdoutTask = Task.Run(async () =>
+        {
+            while (true)
+            {
+                var line = await proc.StandardOutput.ReadLineAsync();
+                if (line == null) break;
+                OutputReceived?.Invoke(line);
+            }
+        });
+        var stderrTask = Task.Run(async () =>
+        {
+            while (true)
+            {
+                var line = await proc.StandardError.ReadLineAsync();
+                if (line == null) break;
+                OutputReceived?.Invoke(line);
+            }
+        });
+
+        await Task.WhenAll(stdoutTask, stderrTask);
+        await proc.WaitForExitAsync();
     }
 
     public async Task RunAnalyzeAsync(string transcriptFile, string analyzeType, string provider,

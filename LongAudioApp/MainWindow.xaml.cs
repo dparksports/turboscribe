@@ -145,10 +145,14 @@ public partial class MainWindow : Window
 
         // Settings Init (lightweight — small JSON + UI property sets)
         AppVersionLabel.Text = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
-        AnalyticsCheck.IsChecked = AnalyticsService.IsEnabled;
         LoadAppSettings();
 
         // Initialize UI from settings
+        AnalyticsCheck.IsChecked = _appSettings.AnalyticsEnabled;
+        AnalyticsService.IsEnabled = _appSettings.AnalyticsEnabled;
+        NoVadCheck.IsChecked = _appSettings.NoVadEnabled;
+        if (!string.IsNullOrEmpty(_appSettings.LastDirectory))
+            DirectoryBox.Text = _appSettings.LastDirectory;
         foreach (ComboBoxItem item in GpuRefreshCombo.Items)
         {
             if (item.Tag?.ToString() == _appSettings.GpuRefreshIntervalSeconds.ToString())
@@ -172,6 +176,9 @@ public partial class MainWindow : Window
             }
         }
         _runner.DevicePreference = _appSettings.DevicePreference;
+
+        // Populate drive list
+        RefreshDrives();
 
         // Defer heavy I/O and subprocess work until after window renders
         ContentRendered += OnContentRendered;
@@ -287,6 +294,109 @@ public partial class MainWindow : Window
             _appSettings.SkipExistingFiles = SkipExistingCheck.IsChecked ?? false;
             SaveAppSettings();
         }
+    }
+
+    // ===== DRIVE SELECTOR =====
+
+    private void RefreshDrives()
+    {
+        DriveList.Items.Clear();
+        
+        // Add system drives
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (!drive.IsReady) continue;
+                
+                var emoji = drive.DriveType switch
+                {
+                    DriveType.Fixed => "💾",
+                    DriveType.Removable => "🔌",
+                    DriveType.Network => "🌐",
+                    DriveType.CDRom => "💿",
+                    _ => "📁"
+                };
+                
+                var label = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? "" : $" ({drive.VolumeLabel})";
+                var freeGB = drive.AvailableFreeSpace / (1024.0 * 1024 * 1024);
+                var totalGB = drive.TotalSize / (1024.0 * 1024 * 1024);
+                var displayText = $"{emoji} {drive.Name.TrimEnd('\\')}{label}  [{freeGB:F0}/{totalGB:F0} GB]";
+
+                var cb = new CheckBox
+                {
+                    Content = displayText,
+                    Tag = drive.RootDirectory.FullName,
+                    IsChecked = _appSettings.SelectedDrives.Contains(drive.RootDirectory.FullName, StringComparer.OrdinalIgnoreCase),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                    FontSize = 12,
+                    Margin = new Thickness(0, 0, 12, 0),
+                    VerticalContentAlignment = VerticalAlignment.Center
+                };
+                cb.Checked += DriveCheckbox_Changed;
+                cb.Unchecked += DriveCheckbox_Changed;
+                DriveList.Items.Add(cb);
+            }
+            catch { /* Drive not accessible */ }
+        }
+        
+        // Add persisted custom folders
+        foreach (var folder in _appSettings.CustomFolders)
+        {
+            if (!Directory.Exists(folder)) continue;
+            
+            var displayText = $"📂 {Path.GetFileName(folder) ?? folder}";
+            var cb = new CheckBox
+            {
+                Content = displayText,
+                Tag = folder,
+                IsChecked = _appSettings.SelectedDrives.Contains(folder, StringComparer.OrdinalIgnoreCase),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 12, 0),
+                VerticalContentAlignment = VerticalAlignment.Center,
+                ToolTip = folder
+            };
+            cb.Checked += DriveCheckbox_Changed;
+            cb.Unchecked += DriveCheckbox_Changed;
+            DriveList.Items.Add(cb);
+        }
+    }
+
+    private void DriveCheckbox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox cb && cb.Tag is string path)
+        {
+            if (cb.IsChecked == true)
+            {
+                if (!_appSettings.SelectedDrives.Contains(path, StringComparer.OrdinalIgnoreCase))
+                    _appSettings.SelectedDrives.Add(path);
+            }
+            else
+            {
+                _appSettings.SelectedDrives.RemoveAll(s => s.Equals(path, StringComparison.OrdinalIgnoreCase));
+            }
+            SaveAppSettings();
+        }
+    }
+
+    private List<string> GetSelectedDirectories()
+    {
+        var dirs = new List<string>();
+        foreach (var item in DriveList.Items)
+        {
+            if (item is CheckBox cb && cb.IsChecked == true && cb.Tag is string path)
+            {
+                if (Directory.Exists(path))
+                    dirs.Add(NormalizePath(path));
+            }
+        }
+        return dirs;
+    }
+
+    private void RefreshDrivesBtn_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshDrives();
     }
 
     private void KillEngineBtn_Click(object sender, RoutedEventArgs e)
@@ -455,6 +565,10 @@ public partial class MainWindow : Window
         public bool SkipExistingFiles { get; set; } = false;
         public string DevicePreference { get; set; } = "cuda"; // "auto", "cuda", or "cpu"
         public bool EnglishOnly { get; set; } = false;
+        public bool NoVadEnabled { get; set; } = true;
+        public string LastDirectory { get; set; } = "";
+        public List<string> SelectedDrives { get; set; } = new();
+        public List<string> CustomFolders { get; set; } = new();
     }
 
     private void GpuRefreshCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -488,7 +602,9 @@ public partial class MainWindow : Window
 
     private void AnalyticsCheck_Click(object sender, RoutedEventArgs e)
     {
-        AnalyticsService.IsEnabled = AnalyticsCheck.IsChecked ?? true;
+        _appSettings.AnalyticsEnabled = AnalyticsCheck.IsChecked ?? true;
+        AnalyticsService.IsEnabled = _appSettings.AnalyticsEnabled;
+        SaveAppSettings();
         AnalyticsService.TrackEvent("analytics_opt_changed", new { enabled = AnalyticsService.IsEnabled });
     }
 
@@ -855,8 +971,18 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog() == true)
         {
-            DirectoryBox.Text = dialog.FolderName;
-            TranscriptFileInfo.MediaDirectory = dialog.FolderName;
+            var folder = dialog.FolderName;
+            DirectoryBox.Text = folder;
+            TranscriptFileInfo.MediaDirectory = folder;
+            
+            // Add as a custom folder checkbox if not already present
+            if (!_appSettings.CustomFolders.Contains(folder, StringComparer.OrdinalIgnoreCase))
+            {
+                _appSettings.CustomFolders.Add(folder);
+                _appSettings.SelectedDrives.Add(folder);
+                SaveAppSettings();
+                RefreshDrives();
+            }
         }
     }
 
@@ -876,24 +1002,50 @@ public partial class MainWindow : Window
 
     private async void TranscribeAllBtn_Click(object sender, RoutedEventArgs e)
     {
-        var dir = NormalizePath(DirectoryBox.Text);
-        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+        var dirs = GetSelectedDirectories();
+        if (dirs.Count == 0)
         {
-            MessageBox.Show("Please set a valid directory in the Scan tab first.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Please check at least one drive or add a custom folder.", "No Drives Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         _isScanRunning = false;
-        _silentCount = 0; // Reset counter
+        _silentCount = 0;
         _silentFiles.Clear();
         ViewSilentBtn.IsEnabled = false;
         TranscribeProgress.Value = 0;
-        TranscribeStatusLabel.Text = "Starting full transcription...";
-        StatusBar.Text = "Transcribing all files with large-v3 (no scan)...";
-
         bool useVad = !(NoVadCheck.IsChecked ?? false);
-        AnalyticsService.TrackEvent("transcribe_all");
-        await _runner.RunBatchTranscribeDirAsync(dir, useVad, skipExisting: _appSettings.SkipExistingFiles);
+        _appSettings.NoVadEnabled = NoVadCheck.IsChecked ?? true;
+        SaveAppSettings();
+        AnalyticsService.TrackEvent("transcribe_all", new { drive_count = dirs.Count });
+
+        TranscribeAllBtn.IsEnabled = false;
+        CancelTranscribeBtn.IsEnabled = true;
+
+        try
+        {
+            for (int i = 0; i < dirs.Count; i++)
+            {
+                var dir = dirs[i];
+                TranscribeStatusLabel.Text = $"[{i + 1}/{dirs.Count}] Transcribing: {dir}";
+                StatusBar.Text = $"Transcribing drive {i + 1}/{dirs.Count}: {dir}";
+                DirectoryBox.Text = dir; // For downstream code that reads DirectoryBox.Text
+                TranscriptFileInfo.MediaDirectory = dir;
+
+                await _runner.RunBatchTranscribeDirAsync(dir, useVad, skipExisting: _appSettings.SkipExistingFiles);
+            }
+            TranscribeStatusLabel.Text = $"Done — transcribed {dirs.Count} location(s)";
+            StatusBar.Text = "Transcription complete";
+        }
+        catch (Exception ex)
+        {
+            TranscribeStatusLabel.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            TranscribeAllBtn.IsEnabled = true;
+            CancelTranscribeBtn.IsEnabled = false;
+        }
     }
 
     private void CancelBtn_Click(object sender, RoutedEventArgs e)
@@ -1285,11 +1437,101 @@ public partial class MainWindow : Window
             }
         };
 
+        var summarize = new MenuItem { Header = "📝 Summarize" };
+        summarize.Click += async (s, e) =>
+        {
+            if (TranscriptList.SelectedItem is TranscriptFileInfo info && File.Exists(info.FullPath))
+                await RunContextMenuAnalysis(info.FullPath, "summarize");
+        };
+
+        var outline = new MenuItem { Header = "📋 Outline" };
+        outline.Click += async (s, e) =>
+        {
+            if (TranscriptList.SelectedItem is TranscriptFileInfo info && File.Exists(info.FullPath))
+                await RunContextMenuAnalysis(info.FullPath, "outline");
+        };
+
+        var deleteTranscript = new MenuItem { Header = "🗑️ Delete Transcript" };
+        deleteTranscript.Click += (s, e) =>
+        {
+            if (TranscriptList.SelectedItem is TranscriptFileInfo info && File.Exists(info.FullPath))
+            {
+                var result = MessageBox.Show(
+                    $"Delete \"{info.FileName}\"?\n\nThis cannot be undone.",
+                    "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        File.Delete(info.FullPath);
+                        RefreshTranscriptList();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Failed to delete: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        };
+
         ctx.Items.Add(openTranscript);
         ctx.Items.Add(new Separator());
         ctx.Items.Add(openInPlayer);
         ctx.Items.Add(revealInExplorer);
+        ctx.Items.Add(new Separator());
+        ctx.Items.Add(summarize);
+        ctx.Items.Add(outline);
+        ctx.Items.Add(new Separator());
+        ctx.Items.Add(deleteTranscript);
         TranscriptList.ContextMenu = ctx;
+    }
+
+    /// <summary>Run analysis from context menu — uses Analysis tab settings, switches to Analysis tab to show results.</summary>
+    private async Task RunContextMenuAnalysis(string transcriptPath, string analyzeType)
+    {
+        // Switch to Analysis tab to show output
+        MainTabControl.SelectedIndex = 1; // Analysis tab is index 1
+
+        var provider = (LlmProviderCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "local";
+        string? model = null;
+        string? apiKey = null;
+        string? cloudModel = null;
+
+        if (provider == "local")
+        {
+            model = (LocalModelCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "phi-3-mini";
+        }
+        else
+        {
+            apiKey = ApiKeyBox.Password.Trim();
+            cloudModel = CloudModelBox.Text.Trim();
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                AnalysisStatusLabel.Text = "Enter an API key in the Analysis tab first";
+                return;
+            }
+        }
+
+        AnalysisStatusLabel.Text = $"Running {analyzeType} on {Path.GetFileName(transcriptPath)}...";
+        AnalysisOutputBox.Text = "Processing...";
+        SummarizeAllBtn.IsEnabled = false;
+        OutlineAllBtn.IsEnabled = false;
+        CancelAnalysisBtn.IsEnabled = true;
+
+        try
+        {
+            await _runner.RunAnalyzeAsync(transcriptPath, analyzeType, provider, model, apiKey, cloudModel);
+        }
+        catch (Exception ex)
+        {
+            AnalysisStatusLabel.Text = $"Analysis failed: {ex.Message}";
+        }
+        finally
+        {
+            SummarizeAllBtn.IsEnabled = true;
+            OutlineAllBtn.IsEnabled = true;
+            CancelAnalysisBtn.IsEnabled = false;
+        }
     }
 
     // ===== OPEN MEDIA FILE =====

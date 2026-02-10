@@ -110,9 +110,9 @@ public class PipInstaller
             failed.Add("sentence-transformers");
 
         // Install llama-cpp-python with CUDA support for GPU inference
-        // Try CUDA pre-built wheel first, then allow source build from PyPI
+        // Official pre-built wheels are available up to cu124. CUDA 12.4 is forward-compatible with RTX 5090+.
         onOutput("Installing llama-cpp-python with CUDA support...");
-        if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu126", onOutput))
+        if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124", onOutput))
         {
             onOutput("CUDA wheel not available, trying default install...");
             if (!await TryRunCommandAsync("-m pip install llama-cpp-python --upgrade --no-warn-script-location --prefer-binary", onOutput))

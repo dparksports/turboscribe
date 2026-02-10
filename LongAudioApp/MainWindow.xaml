@@ -36,21 +36,39 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Directory Picker -->
+                    <!-- Drive / Directory Picker -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="DirectoryBox" Grid.Column="0"
-                                 Text="C:\Users\k2\My Drive (dpark.sports@gmail.com)"
-                                 Background="{StaticResource SurfaceBrush}" 
-                                 Foreground="{StaticResource TextBrush}"
-                                 BorderBrush="{StaticResource BorderBrush}"
-                                 Padding="8,6" FontSize="13" VerticalContentAlignment="Center"/>
-                        <Button x:Name="BrowseBtn" Grid.Column="1" Content="Browse" 
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
-                                Click="BrowseBtn_Click"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- Drive checkbox list -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="📁 Drives:" Foreground="{StaticResource TextDimBrush}" 
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ItemsControl x:Name="DriveList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <Button x:Name="RefreshDrivesBtn" Content="🔄" Width="28" Height="24"
+                                    Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                    Click="RefreshDrivesBtn_Click" ToolTip="Refresh drive list"
+                                    FontSize="12" Padding="2"/>
+                            <TextBlock Text="|" Foreground="{StaticResource BorderBrush}" 
+                                       VerticalAlignment="Center" Margin="8,0" FontSize="14"/>
+                            <Button x:Name="BrowseBtn" Content="📂 Custom Folder" 
+                                    Style="{StaticResource AccentButton}"
+                                    Click="BrowseBtn_Click" FontSize="11" Padding="8,2"
+                                    ToolTip="Add a custom folder to scan"/>
+                        </StackPanel>
+                        
+                        <!-- Hidden: stores the active directory path for compatibility -->
+                        <TextBox x:Name="DirectoryBox" Grid.Row="1" Visibility="Collapsed"
+                                 Text="C:\Users\k2\My Drive (dpark.sports@gmail.com)"/>
                     </Grid>
 
                     <!-- Transcribe Controls -->
@@ -283,241 +301,6 @@
                 </Grid>
             </TabItem>
 
-            <!-- ===== SETTINGS TAB ===== -->
-            <TabItem Header="⚙ Settings">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
-                <StackPanel Margin="24,20">
-                    <TextBlock Text="Application Settings" FontSize="18" FontWeight="SemiBold" 
-                               Foreground="{StaticResource TextBrush}" Margin="0,0,0,16"/>
-
-                    <!-- SCANNER SETTINGS -->
-                    <GroupBox Header="Scanner Settings" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
-                        <StackPanel>
-                            <CheckBox x:Name="NoVadCheck" Content="No VAD (Outdoor/Noisy Mode)" 
-                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
-                                      IsChecked="True" Margin="0,4"/>
-                            <TextBlock Text="Disable Voice Activity Detection if your audio has loud background noise." 
-                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
-                            
-                            <CheckBox x:Name="EnglishOnlyCheck" Content="English Only Models" 
-                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
-                                      IsChecked="False" Click="EnglishOnlyCheck_Click" Margin="0,4"/>
-                            <TextBlock Text="Show only English-optimized models in the Transcribe tab model selector." 
-                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
-                            
-                            <TextBlock Text="Device (GPU / CPU)" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
-                            <ComboBox x:Name="DeviceCombo" Width="200" HorizontalAlignment="Left"
-                                      SelectionChanged="DeviceCombo_SelectionChanged">
-                                <ComboBoxItem Content="Auto (GPU if available)" Tag="auto" IsSelected="True"/>
-                                <ComboBoxItem Content="GPU (CUDA)" Tag="cuda"/>
-                                <ComboBoxItem Content="CPU Only" Tag="cpu"/>
-                            </ComboBox>
-                            <TextBlock Text="GPU mode requires NVIDIA GPU with CUDA and CUDA-enabled PyTorch installed." 
-                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </GroupBox>
-
-                    <!-- SYSTEM SETTINGS -->
-                    <GroupBox Header="System" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
-                        <StackPanel>
-                            <TextBlock Text="GPU Status Refresh Rate" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
-                            <ComboBox x:Name="GpuRefreshCombo" Width="200" HorizontalAlignment="Left"
-                                      SelectionChanged="GpuRefreshCombo_SelectionChanged">
-                                <ComboBoxItem Content="1 second (Fast)" Tag="1"/>
-                                <ComboBoxItem Content="3 seconds (Default)" Tag="3" IsSelected="True"/>
-                                <ComboBoxItem Content="5 seconds" Tag="5"/>
-                                <ComboBoxItem Content="10 seconds" Tag="10"/>
-                                <ComboBoxItem Content="Manual (Click to refresh)" Tag="0"/>
-                            </ComboBox>
-                        </StackPanel>
-                    </GroupBox>
-
-                    <!-- ENGINE PROCESS MANAGEMENT -->
-                    <GroupBox Header="Engine Process" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
-                        <StackPanel>
-                            <CheckBox x:Name="StartEngineCheck" Content="Start Engine Logic on App Launch (Requires Restart)" 
-                                      IsChecked="False" Checked="StartEngineCheck_Changed" Unchecked="StartEngineCheck_Changed"
-                                      Foreground="{StaticResource TextBrush}"
-                                      Margin="0,0,0,12"/>
-
-                            <CheckBox x:Name="SkipExistingCheck" Content="Skip existing transcript files" 
-                                      IsChecked="False" Checked="SkipExistingCheck_Changed" Unchecked="SkipExistingCheck_Changed"
-                                      Foreground="{StaticResource TextBrush}"
-                                      Margin="0,0,0,12"/>
-                            
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Status: " Foreground="{StaticResource TextDimBrush}"/>
-                                <TextBlock x:Name="EngineStatusLabel" Text="Idle" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                            </StackPanel>
-                            
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="EngineToggleBtn" Content="⚡ Start Engine Server" Width="160" HorizontalAlignment="Left"
-                                        Style="{StaticResource AccentButton}" Click="EngineToggleBtn_Click"
-                                        ToolTip="Start the persistent engine server for faster scans"/>
-                                        
-                                <Button Content="💀 Force Kill" Width="100" HorizontalAlignment="Left" Margin="12,0,0,0"
-                                        Style="{StaticResource AccentButton}" Click="KillEngineBtn_Click"
-                                        Background="#332222" Foreground="#FF6666"
-                                        ToolTip="Force terminate all engine processes"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </GroupBox>
-
-                    <GroupBox Header="AI Libraries (Pip)" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
-                        <StackPanel>
-                            <TextBlock Text="Install required AI libraries (faster-whisper, torch) if running from source/embedded python." 
-                                       Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                            
-                            <Button x:Name="InstallLibsBtn" Content="📥 Install AI Libraries" Width="180" HorizontalAlignment="Left"
-                                    Style="{StaticResource AccentButton}" Click="InstallLibsBtn_Click" Margin="0,0,0,8"/>
-                            
-                            <!-- Error summary (hidden until install runs) -->
-                            <TextBlock x:Name="InstallErrorSummary" Foreground="#FF6666" FontSize="11" 
-                                       TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="InstallLogBox" Grid.Column="0" Height="100" Background="#0F172A" Foreground="#94A3B8" 
-                                         FontFamily="Cascadia Mono,Consolas,Courier New" FontSize="11"
-                                         IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
-                                         TextWrapping="Wrap" Padding="8" BorderThickness="0"/>
-                                <Button x:Name="PopOpenLogBtn" Grid.Column="1" Content="⬜" Width="28" 
-                                        VerticalAlignment="Top" Margin="4,0,0,0"
-                                        Style="{StaticResource AccentButton}" Click="PopOpenLogBtn_Click"
-                                        ToolTip="Open log in a separate window" FontSize="12" Padding="4"/>
-                            </Grid>
-                        </StackPanel>
-                    </GroupBox>
-
-
-                    <!-- PRIVACY SETTINGS -->
-                    <GroupBox Header="Privacy" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
-                        <StackPanel>
-                            <CheckBox x:Name="AnalyticsCheck" Content="Share Anonymous Usage Data" 
-                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
-                                      IsChecked="True" Click="AnalyticsCheck_Click" Margin="0,4"/>
-                            <TextBlock Text="Help us improve by sending anonymous crash reports and usage statistics." 
-                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,0"/>
-                        </StackPanel>
-                    </GroupBox>
-
-                    <!-- ABOUT -->
-                    <GroupBox Header="About" BorderBrush="{StaticResource BorderBrush}" 
-                              Foreground="{StaticResource TextDimBrush}" Padding="12">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,4">
-                                <TextBlock Text="Version: " Foreground="{StaticResource TextDimBrush}" FontSize="13"/>
-                                <TextBlock x:Name="AppVersionLabel" Text="1.0.0" 
-                                           Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"/>
-                            </StackPanel>
-                            <TextBlock Text="TurboScribe" 
-                                       Foreground="{StaticResource TextDimBrush}" FontSize="12" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </GroupBox>
-                </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ===== LOG TAB ===== -->
-            <TabItem Header="📋 Log">
-                <TextBox x:Name="LogBox" IsReadOnly="True"
-                         Background="{StaticResource SurfaceBrush}"
-                         Foreground="{StaticResource TextDimBrush}"
-                         BorderBrush="{StaticResource BorderBrush}"
-                         FontFamily="Cascadia Mono,Consolas,Courier New"
-                         FontSize="11" Padding="8" TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" Margin="0,12,0,0"
-                         AcceptsReturn="True"/>
-            </TabItem>
-
-            <!-- ===== SEMANTIC SEARCH TAB ===== -->
-            <TabItem Header="🔎 Semantic Search">
-                <Grid Margin="0,12,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Search Controls -->
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="SemanticSearchBox" Grid.Column="0"
-                                 Background="{StaticResource SurfaceBrush}" 
-                                 Foreground="{StaticResource TextBrush}"
-                                 BorderBrush="{StaticResource BorderBrush}"
-                                 Padding="8,6" FontSize="13" VerticalContentAlignment="Center"
-                                 KeyDown="SemanticSearchBox_KeyDown"
-                                 ToolTip="Enter a keyword or sentence to search"/>
-                        <ComboBox x:Name="SearchModeCombo" Grid.Column="1" Width="140" Margin="8,0,0,0"
-                                  FontSize="11" SelectedIndex="0">
-                            <ComboBoxItem Content="Exact Match" Tag="exact"/>
-                            <ComboBoxItem Content="Similar Meaning" Tag="semantic"/>
-                        </ComboBox>
-                        <ComboBox x:Name="EmbeddingModelCombo" Grid.Column="2" Width="180" Margin="8,0,0,0"
-                                  FontSize="11" SelectedIndex="0"
-                                  ToolTip="Embedding model for semantic search">
-                            <ComboBoxItem Content="all-MiniLM-L6-v2" Tag="all-MiniLM-L6-v2"/>
-                            <ComboBoxItem Content="all-mpnet-base-v2" Tag="all-mpnet-base-v2"/>
-                            <ComboBoxItem Content="gte-small" Tag="thenlper/gte-small"/>
-                            <ComboBoxItem Content="Qwen3-Embedding-0.6B" Tag="Qwen/Qwen3-Embedding-0.6B"/>
-                            <ComboBoxItem Content="EmbeddingGemma-300M" Tag="google/embedding-gemma-300m"/>
-                        </ComboBox>
-                        <Button x:Name="SemanticSearchBtn" Grid.Column="3" Content="🔍 Search"
-                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
-                                Click="SemanticSearchBtn_Click"/>
-                    </Grid>
-
-                    <!-- Search Status -->
-                    <TextBlock x:Name="SearchStatusLabel" Grid.Row="1"
-                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
-                               Margin="0,0,0,8" Text="Enter a search query above"/>
-
-                    <!-- Search Results -->
-                    <DataGrid x:Name="SearchResultsGrid" Grid.Row="2" AutoGenerateColumns="False"
-                              IsReadOnly="True" SelectionMode="Single"
-                              Background="{StaticResource SurfaceBrush}" 
-                              Foreground="{StaticResource TextBrush}"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              RowBackground="{StaticResource SurfaceBrush}"
-                              AlternatingRowBackground="#252536"
-                              GridLinesVisibility="Horizontal"
-                              HorizontalGridLinesBrush="{StaticResource BorderBrush}"
-                              HeadersVisibility="Column" CanUserResizeRows="False"
-                              FontSize="12">
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#1A1A2A"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="FontSize" Value="11"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="200"/>
-                            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" Width="80"/>
-                            <DataGridTextColumn Header="Matching Content" Binding="{Binding MatchSnippet}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </TabItem>
-
             <!-- ===== ANALYSIS TAB ===== -->
             <TabItem Header="📊 Analysis">
                 <Grid Margin="0,12,0,0">
@@ -713,6 +496,242 @@
                     </Grid>
                 </Grid>
             </TabItem>
+
+            <!-- ===== SEMANTIC SEARCH TAB ===== -->
+            <TabItem Header="🔎 Semantic Search">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Search Controls -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SemanticSearchBox" Grid.Column="0"
+                                 Background="{StaticResource SurfaceBrush}" 
+                                 Foreground="{StaticResource TextBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}"
+                                 Padding="8,6" FontSize="13" VerticalContentAlignment="Center"
+                                 KeyDown="SemanticSearchBox_KeyDown"
+                                 ToolTip="Enter a keyword or sentence to search"/>
+                        <ComboBox x:Name="SearchModeCombo" Grid.Column="1" Width="140" Margin="8,0,0,0"
+                                  FontSize="11" SelectedIndex="0">
+                            <ComboBoxItem Content="Exact Match" Tag="exact"/>
+                            <ComboBoxItem Content="Similar Meaning" Tag="semantic"/>
+                        </ComboBox>
+                        <ComboBox x:Name="EmbeddingModelCombo" Grid.Column="2" Width="180" Margin="8,0,0,0"
+                                  FontSize="11" SelectedIndex="0"
+                                  ToolTip="Embedding model for semantic search">
+                            <ComboBoxItem Content="all-MiniLM-L6-v2" Tag="all-MiniLM-L6-v2"/>
+                            <ComboBoxItem Content="all-mpnet-base-v2" Tag="all-mpnet-base-v2"/>
+                            <ComboBoxItem Content="gte-small" Tag="thenlper/gte-small"/>
+                            <ComboBoxItem Content="Qwen3-Embedding-0.6B" Tag="Qwen/Qwen3-Embedding-0.6B"/>
+                            <ComboBoxItem Content="EmbeddingGemma-300M" Tag="google/embedding-gemma-300m"/>
+                        </ComboBox>
+                        <Button x:Name="SemanticSearchBtn" Grid.Column="3" Content="🔍 Search"
+                                Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                Click="SemanticSearchBtn_Click"/>
+                    </Grid>
+
+                    <!-- Search Status -->
+                    <TextBlock x:Name="SearchStatusLabel" Grid.Row="1"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                               Margin="0,0,0,8" Text="Enter a search query above"/>
+
+                    <!-- Search Results -->
+                    <DataGrid x:Name="SearchResultsGrid" Grid.Row="2" AutoGenerateColumns="False"
+                              IsReadOnly="True" SelectionMode="Single"
+                              Background="{StaticResource SurfaceBrush}" 
+                              Foreground="{StaticResource TextBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              RowBackground="{StaticResource SurfaceBrush}"
+                              AlternatingRowBackground="#252536"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                              HeadersVisibility="Column" CanUserResizeRows="False"
+                              FontSize="12">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1A1A2A"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="200"/>
+                            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" Width="80"/>
+                            <DataGridTextColumn Header="Matching Content" Binding="{Binding MatchSnippet}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== LOG TAB ===== -->
+            <TabItem Header="📋 Log">
+                <TextBox x:Name="LogBox" IsReadOnly="True"
+                         Background="{StaticResource SurfaceBrush}"
+                         Foreground="{StaticResource TextDimBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         FontFamily="Cascadia Mono,Consolas,Courier New"
+                         FontSize="11" Padding="8" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" Margin="0,12,0,0"
+                         AcceptsReturn="True"/>
+            </TabItem>
+
+            <!-- ===== SETTINGS TAB ===== -->
+            <TabItem Header="⚙ Settings">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel Margin="24,20">
+                    <TextBlock Text="Application Settings" FontSize="18" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextBrush}" Margin="0,0,0,16"/>
+
+                    <!-- SCANNER SETTINGS -->
+                    <GroupBox Header="Scanner Settings" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <CheckBox x:Name="NoVadCheck" Content="No VAD (Outdoor/Noisy Mode)" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="True" Margin="0,4"/>
+                            <TextBlock Text="Disable Voice Activity Detection if your audio has loud background noise." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
+                            
+                            <CheckBox x:Name="EnglishOnlyCheck" Content="English Only Models" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="False" Click="EnglishOnlyCheck_Click" Margin="0,4"/>
+                            <TextBlock Text="Show only English-optimized models in the Transcribe tab model selector." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
+                            
+                            <TextBlock Text="Device (GPU / CPU)" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="DeviceCombo" Width="200" HorizontalAlignment="Left"
+                                      SelectionChanged="DeviceCombo_SelectionChanged">
+                                <ComboBoxItem Content="Auto (GPU if available)" Tag="auto" IsSelected="True"/>
+                                <ComboBoxItem Content="GPU (CUDA)" Tag="cuda"/>
+                                <ComboBoxItem Content="CPU Only" Tag="cpu"/>
+                            </ComboBox>
+                            <TextBlock Text="GPU mode requires NVIDIA GPU with CUDA and CUDA-enabled PyTorch installed." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- SYSTEM SETTINGS -->
+                    <GroupBox Header="System" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="GPU Status Refresh Rate" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="GpuRefreshCombo" Width="200" HorizontalAlignment="Left"
+                                      SelectionChanged="GpuRefreshCombo_SelectionChanged">
+                                <ComboBoxItem Content="1 second (Fast)" Tag="1"/>
+                                <ComboBoxItem Content="3 seconds (Default)" Tag="3" IsSelected="True"/>
+                                <ComboBoxItem Content="5 seconds" Tag="5"/>
+                                <ComboBoxItem Content="10 seconds" Tag="10"/>
+                                <ComboBoxItem Content="Manual (Click to refresh)" Tag="0"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- ENGINE PROCESS MANAGEMENT -->
+                    <GroupBox Header="Engine Process" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <CheckBox x:Name="StartEngineCheck" Content="Start Engine Logic on App Launch (Requires Restart)" 
+                                      IsChecked="False" Checked="StartEngineCheck_Changed" Unchecked="StartEngineCheck_Changed"
+                                      Foreground="{StaticResource TextBrush}"
+                                      Margin="0,0,0,12"/>
+
+                            <CheckBox x:Name="SkipExistingCheck" Content="Skip existing transcript files" 
+                                      IsChecked="False" Checked="SkipExistingCheck_Changed" Unchecked="SkipExistingCheck_Changed"
+                                      Foreground="{StaticResource TextBrush}"
+                                      Margin="0,0,0,12"/>
+                            
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Status: " Foreground="{StaticResource TextDimBrush}"/>
+                                <TextBlock x:Name="EngineStatusLabel" Text="Idle" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                            </StackPanel>
+                            
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="EngineToggleBtn" Content="⚡ Start Engine Server" Width="160" HorizontalAlignment="Left"
+                                        Style="{StaticResource AccentButton}" Click="EngineToggleBtn_Click"
+                                        ToolTip="Start the persistent engine server for faster scans"/>
+                                        
+                                <Button Content="💀 Force Kill" Width="100" HorizontalAlignment="Left" Margin="12,0,0,0"
+                                        Style="{StaticResource AccentButton}" Click="KillEngineBtn_Click"
+                                        Background="#332222" Foreground="#FF6666"
+                                        ToolTip="Force terminate all engine processes"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="AI Libraries (Pip)" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="Install required AI libraries (faster-whisper, torch) if running from source/embedded python." 
+                                       Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            
+                            <Button x:Name="InstallLibsBtn" Content="📥 Install AI Libraries" Width="180" HorizontalAlignment="Left"
+                                    Style="{StaticResource AccentButton}" Click="InstallLibsBtn_Click" Margin="0,0,0,8"/>
+                            
+                            <!-- Error summary (hidden until install runs) -->
+                            <TextBlock x:Name="InstallErrorSummary" Foreground="#FF6666" FontSize="11" 
+                                       TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="InstallLogBox" Grid.Column="0" Height="100" Background="#0F172A" Foreground="#94A3B8" 
+                                         FontFamily="Cascadia Mono,Consolas,Courier New" FontSize="11"
+                                         IsReadOnly="True" VerticalScrollBarVisibility="Auto" 
+                                         TextWrapping="Wrap" Padding="8" BorderThickness="0"/>
+                                <Button x:Name="PopOpenLogBtn" Grid.Column="1" Content="⬜" Width="28" 
+                                        VerticalAlignment="Top" Margin="4,0,0,0"
+                                        Style="{StaticResource AccentButton}" Click="PopOpenLogBtn_Click"
+                                        ToolTip="Open log in a separate window" FontSize="12" Padding="4"/>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+
+
+                    <!-- PRIVACY SETTINGS -->
+                    <GroupBox Header="Privacy" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
+                        <StackPanel>
+                            <CheckBox x:Name="AnalyticsCheck" Content="Share Anonymous Usage Data" 
+                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
+                                      IsChecked="True" Click="AnalyticsCheck_Click" Margin="0,4"/>
+                            <TextBlock Text="Help us improve by sending anonymous crash reports and usage statistics." 
+                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- ABOUT -->
+                    <GroupBox Header="About" BorderBrush="{StaticResource BorderBrush}" 
+                              Foreground="{StaticResource TextDimBrush}" Padding="12">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,4">
+                                <TextBlock Text="Version: " Foreground="{StaticResource TextDimBrush}" FontSize="13"/>
+                                <TextBlock x:Name="AppVersionLabel" Text="1.0.0" 
+                                           Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock Text="TurboScribe" 
+                                       Foreground="{StaticResource TextDimBrush}" FontSize="12" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
 
         <!-- Status Bar -->
