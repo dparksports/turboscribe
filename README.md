@@ -1,6 +1,6 @@
 # 🎙️ TurboScribe
 
-**Transcribe entire drives of audio and video — locally, privately, and for free.**
+**Transcribe entire drives of audio and video — free, local and private.**
 
 TurboScribe is a Windows desktop app powered by [faster-whisper](https://github.com/SYSTRAN/faster-whisper) that transcribes your media files entirely on your machine. No cloud services, no subscriptions, and no data ever leaves your computer. Point it at any drive — local, USB, or network — and let it process everything automatically.
 
