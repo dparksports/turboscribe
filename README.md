@@ -8,7 +8,7 @@ TurboScribe is a Windows desktop app powered by a custom turbo charged whisper t
 
 ## 📥 Download
 
-**[⬇ Download TurboScribe v2.0.0 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v2.0.0/TurboScribe-v2.0.0.zip)**
+**[⬇ Download TurboScribe v2.0.1 (Windows x64)](https://github.com/dparksports/turboscribe/releases/download/v2.0.1/TurboScribe-v2.0.1.zip)**
 
 Extract the zip → run `TurboScribe.exe` → done.
 
@@ -18,7 +18,7 @@ Extract the zip → run `TurboScribe.exe` → done.
 
 ## 📸 Screenshot
 
-![TurboScribe v2.0.0](turboscribe_dark_ui_v160_1770686953675.png)
+![TurboScribe v2.0.1](turboscribe_dark_ui_v160_1770686953675.png)
 
 ---
 
