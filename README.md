@@ -16,6 +16,12 @@ Extract the zip → run `TurboScribe.exe` → done.
 
 ---
 
+## 📸 Screenshot
+
+![TurboScribe v2.0.0](turboscribe_dark_ui_v160_1770686953675.png)
+
+---
+
 ## ✨ Features
 
 ### Transcription
