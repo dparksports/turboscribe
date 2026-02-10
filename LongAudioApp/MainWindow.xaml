@@ -5,6 +5,12 @@
         Background="{StaticResource BgBrush}"
         WindowStartupLocation="CenterScreen">
 
+    <!-- Custom window chrome for borderless/rounded look -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" CornerRadius="12" GlassFrameThickness="0"
+                      ResizeBorderThickness="6" UseAeroCaptionButtons="True"/>
+    </WindowChrome.WindowChrome>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -14,10 +20,11 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="🎙️ TurboScribe" FontSize="22" FontWeight="Bold" 
-                       Foreground="{StaticResource TextBrush}"/>
-            <TextBlock Text="Scan media files for voice activity, then transcribe with Whisper Large-v3"
-                       Foreground="{StaticResource TextDimBrush}" FontSize="12" Margin="0,4,0,0"/>
+            <TextBlock Text="TurboScribe" FontSize="22" FontWeight="Bold" 
+                       Foreground="{StaticResource AccentLightBrush}"/>
+            <TextBlock Text="Transcribe entire drives of audio and video — locally, privately, and for free"
+                       Foreground="{StaticResource TextDimBrush}" FontSize="12" Margin="0,4,0,8"/>
+            <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,0"/>
         </StackPanel>
 
         <!-- Tab Control -->
