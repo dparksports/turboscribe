@@ -140,7 +140,8 @@ public partial class MainWindow : Window
     private string? _selectedTranscriptPath;
     // Media player state
     private DispatcherTimer? _playerTimer;
-    private bool _isSeeking;
+    private bool _isUserScrubbing;      // true while user drags the seek slider
+    private bool _isSyncingTranscript;   // true while timer updates transcript selection (prevents feedback loop)
     private bool _isPlayerPlaying;
     private List<TranscriptLine> _currentTranscriptLines = new();
     private bool _gpuHardwareAvailable;
@@ -2665,12 +2666,12 @@ public partial class MainWindow : Window
 
     private void MediaSeekSlider_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
     {
-        _isSeeking = true;
+        _isUserScrubbing = true;
     }
 
     private void MediaSeekSlider_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
-        _isSeeking = false;
+        _isUserScrubbing = false;
         MediaPlayer.Position = TimeSpan.FromSeconds(MediaSeekSlider.Value);
     }
 
@@ -2682,9 +2683,19 @@ public partial class MainWindow : Window
 
     private void PlayerTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isSeeking || !_isPlayerPlaying) return;
-        var pos = MediaPlayer.Position;
-        MediaSeekSlider.Value = pos.TotalSeconds;
+        // Determine current playback position
+        // When user is scrubbing, use slider value; otherwise use actual player position
+        TimeSpan pos;
+        if (_isUserScrubbing)
+        {
+            pos = TimeSpan.FromSeconds(MediaSeekSlider.Value);
+        }
+        else
+        {
+            if (!_isPlayerPlaying) return;
+            pos = MediaPlayer.Position;
+            MediaSeekSlider.Value = pos.TotalSeconds;
+        }
 
         if (MediaPlayer.NaturalDuration.HasTimeSpan)
         {
@@ -2703,17 +2714,17 @@ public partial class MainWindow : Window
             }
             if (best != null && TranscriptLineList.SelectedItem != best)
             {
-                _isSeeking = true; // prevent re-entrant seek
+                _isSyncingTranscript = true; // prevent re-entrant seek
                 TranscriptLineList.SelectedItem = best;
                 TranscriptLineList.ScrollIntoView(best);
-                _isSeeking = false;
+                _isSyncingTranscript = false;
             }
         }
     }
 
     private void TranscriptLineList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isSeeking) return; // Avoid re-entrant loop from timer
+        if (_isSyncingTranscript) return; // Avoid re-entrant loop from timer
         if (TranscriptLineList.SelectedItem is TranscriptLine line && line.Offset != TimeSpan.Zero)
         {
             MediaPlayer.Position = line.Offset;
