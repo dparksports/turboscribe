@@ -23,12 +23,6 @@ public static class AnalyticsService
     private const string Endpoint = "https://www.google-analytics.com/g/collect";
     private const int SessionTimeoutMinutes = 30;
 
-// #if DEBUG
-//     private const bool EnableDebugMode = true;
-// #else
-//     private const bool EnableDebugMode = false;
-// #endif
-
     // Loaded from firebase_config.json
     private static string _measurementId = "";
     // ApiSecret is NOT used for /g/collect
@@ -146,12 +140,6 @@ public static class AnalyticsService
         // Special: engagement_time_msec is required for session metrics
         // In /g/collect, it's often _et? But user asked for ep.engagement_time_msec=100
         sb.Append("&ep.engagement_time_msec=100");
-
-        // debug_mode for DebugView
-        if (EnableDebugMode)
-        {
-            sb.Append("&ep.debug_mode=1");
-        }
         
         // Custom Platform Property
         sb.Append("&ep.platform=windows");
