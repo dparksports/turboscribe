@@ -1,116 +1,117 @@
-# 🎙️ TurboScribe
+# TurboScribe
 
-**Fast, private, GPU-accelerated transcription & video processing for Windows.**
+**GPU-accelerated audio transcription and meeting detection for Windows.**
 
-TurboScribe transcribes audio and video files entirely on your machine using OpenAI's Whisper models. It also extracts burned-in timestamps from surveillance/dashcam footage and batch-renames files automatically. No cloud services, no subscriptions — your data stays on your computer.
+TurboScribe uses OpenAI's Whisper models to transcribe long-form audio files (hours of content) with high accuracy. It includes an AI-powered meeting detector that uses local LLMs to distinguish real conversations from hallucinated transcripts.
 
----
+## Download
 
-## 📥 Download
+**[📥 Download TurboScribe-Windows.zip](https://github.com/dparksports/turboscribe/releases/latest/download/TurboScribe-Windows.zip)**
 
-**[⬇ Download TurboScribe v3.0](https://github.com/dparksports/turboscribe/releases/latest)**
+Extract the zip and run `TurboScribe.exe` — no installation required.
 
-Extract the zip → run `TurboScribe.exe` → done.
+## Features
 
-**Requirements:** Windows 10/11 (x64), .NET 8 Runtime. NVIDIA GPU recommended.
+### 🎙️ Transcription
+- **Batch transcription** of entire directories (supports MP3, WAV, M4A, FLAC, OGG, WMA)
+- **12 Whisper models** from tiny (fast) to large-v3 (most accurate)
+- **GPU acceleration** via CUDA for 10-20x faster processing
+- **Adjustable beam size** for speed/accuracy tradeoff
+- **Multi-version support** — keep transcripts for multiple models per file
 
----
+### 🤖 AI Meeting Detection
+- **Local LLM** (llama-cpp-python) or cloud APIs (Gemini, OpenAI, Claude)
+- **GPU-accelerated inference** with automatic CPU fallback
+- **Real-time progress** updates during detection
+- **Skip checked files** to resume interrupted scans
+- **Cancel anytime** without losing progress
 
-## ✨ Features
+### 🔍 Search & Analysis
+- **Semantic search** across all transcripts using sentence embeddings
+- **Keyword search** with context snippets
+- **Timestamp extraction** for video files (creates preview thumbnails)
 
-### 🎤 Transcription
-- **12 Whisper models** — tiny through large-v3, turbo, and English-specific variants
-- **GPU acceleration** — CUDA support for 4× faster transcription on NVIDIA GPUs
-- **Voice Activity Detection** — Silero VAD scans files for speech before transcribing
-- **Batch processing** — transcribe entire drives, folders, or USB devices
-- **Smart skip** — automatically skips files that already have transcripts
-- **Multi-model comparison** — run different models on the same file side-by-side
+### ⚙️ Developer-Friendly
+- **Python backend** (`fast_engine.py`) with standalone CLI
+- **WPF frontend** for Windows desktop
+- **Persistent engine server** mode for faster repeated operations
+- **JSON reports** for batch processing results
 
-### 🎬 Batch Video Rename *(New in v3.0)*
-- **Timestamp extraction** — uses Qwen2.5-VL vision model to read burned-in timestamps from video frames
-- **Auto-rename** — generates standardized filenames: `YYYYMMDD_HHMMSS-HHMMSS_location.mp4`
-- **Drive selector** — pick any drive from a dropdown, add optional subfolder path
-- **Prefix filter** — only process files matching a keyword (e.g., "reo")
-- **Recursive scanning** — include all subfolders with one checkbox
-- **Concurrent processing** — transcribe files while batch-renaming runs simultaneously
+## System Requirements
 
-### 🔍 Search
-- **Keyword search** — exact text matching across all transcripts
-- **Semantic search** — find content by meaning using sentence-transformers
-- **5 embedding models** — MiniLM, mpnet, GTE, Qwen3-Embedding, Gemma-Embedding
+- **OS**: Windows 10/11 (64-bit)
+- **GPU**: NVIDIA GPU with CUDA support (optional, but highly recommended)
+- **RAM**: 8 GB minimum, 16 GB recommended for large models
+- **Storage**: ~10 GB for models and dependencies
 
-### 🤖 AI Analysis
-- **Summarize & outline** — generate structured summaries for transcripts
-- **Local or cloud** — LLaMA, Mistral, Phi-3, Qwen2, Gemma locally or Gemini/OpenAI/Claude via API
-- **Batch analysis** — process all transcripts at once
+## Quick Start
 
-### ▶️ Media Player
-- **Embedded playback** — play audio/video directly in the app
-- **Transcript sync** — click lines to seek, or scrub timeline to highlight text
+1. **Launch** `TurboScribe.exe`
+2. **Select a directory** containing audio files
+3. **Choose a Whisper model** (start with `base.en` for testing, `large-v3` for production)
+4. **Click "Transcribe All Files"** — transcripts are saved as `filename_transcript_modelname.txt`
+5. **Optional**: Click "Detect Meetings" to use AI to filter out hallucinated transcripts
 
----
+## Model Comparison
 
-## 🚀 Quick Start
+| Model | Accuracy | Speed (1hr GPU) | Best For |
+|---|---|---|---|
+| `tiny.en` | ★★☆☆☆ | ~30 sec | Voice detection / scanning |
+| `base.en` | ★★★☆☆ | ~1 min | Quick draft transcripts |
+| `small.en` | ★★★½☆ | ~2 min | Everyday accuracy |
+| `medium.en` | ★★★★☆ | ~4 min | High quality English-only |
+| `large-v2` | ★★★★★ | ~8 min | Best stability, few hallucinations |
+| `large-v3` | ★★★★★ | ~8 min | Best for accents / multilingual |
+| `turbo` | ★★★★½ | ~3 min | Best speed/accuracy tradeoff |
 
-1. **Download** the [latest release](https://github.com/dparksports/turboscribe/releases/latest)
-2. **Extract** and run `TurboScribe.exe`
-3. **Install AI Libraries** — Settings → Install AI Libraries (one-time, ~2GB)
-4. **Select drives/folders** using the checkboxes on the Transcribe tab
-5. **Scan for Voice** → **Transcribe All Files**
+## CLI Usage
 
-### Batch Video Rename
-1. Go to the **Timestamps** tab
-2. Select a **drive** from the dropdown
-3. Set the **prefix filter** (e.g., `reo`) to target specific files
-4. Check **Include Subfolders** and **Auto Rename**
-5. Click **Scan & Rename** — files are renamed as timestamps are extracted
+The Python backend can be used standalone:
 
----
+```bash
+# Transcribe a single file
+python fast_engine.py transcribe_file "audio.mp3" --model large-v3 --beam-size 5
 
-## 🔧 Tech Stack
+# Batch transcribe a directory
+python fast_engine.py batch_transcribe_dir --dir "C:\Audio" --model turbo
 
-| Component | Technology |
-|---|---|
-| Transcription | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) + CUDA |
-| Timestamp OCR | [Qwen2.5-VL-7B](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) |
-| Voice Detection | Silero VAD |
-| Semantic Search | sentence-transformers |
-| AI Analysis | llama-cpp-python / cloud APIs |
-| Desktop App | WPF, .NET 8, C# |
+# Detect meetings in transcripts
+python fast_engine.py detect_meetings --dir "C:\Audio" --provider local --model "llama-3.2-3b-instruct-q4_k_m.gguf"
 
----
+# Semantic search across transcripts
+python fast_engine.py semantic_search --dir "C:\Audio" --query "quarterly earnings"
+```
 
-## 🛠️ Build from Source
+## Configuration
+
+### GPU Settings
+- **Auto (default)**: Uses GPU if available, falls back to CPU
+- **GPU (CUDA)**: Forces GPU mode (requires CUDA-enabled PyTorch)
+- **CPU Only**: Disables GPU acceleration
+
+### Beam Size
+- **1 (Fast)**: Greedy decoding — fastest, fine for tiny/base
+- **3**: Balanced — good for small/medium
+- **5 (Best)**: Most accurate — recommended for large/turbo
+- **Auto**: Picks 1 for tiny/base, 3 for small, 5 for large
+
+## Building from Source
 
 ```bash
 git clone https://github.com/dparksports/turboscribe.git
 cd turboscribe
-dotnet restore
-dotnet run --project LongAudioApp
+dotnet publish -c Release LongAudioApp/LongAudioApp.csproj -o publish
 ```
 
----
+Python dependencies are auto-installed on first run via the built-in `PipInstaller`.
 
-## 📝 Changelog
+## License
 
-### v3.0.0
-- Batch video rename with VLM timestamp extraction
-- Drive selector for easy path selection
-- Auto-rename during scan (no separate rename step)
-- Filename prefix filter
-- Recursive subfolder scanning
-- Dedicated timestamp runner for concurrent transcription + rename
-- Drive path quoting fix for root drives
+MIT License — see [LICENSE](LICENSE) for details.
 
-### v2.7.0
-- Voice duration column with sorting
-- Untranscribed files list
-- Model names in transcript filenames
-- Delete all transcripts option
-- Rounded section borders UI refresh
+## Credits
 
----
-
-## 📄 License
-
-[Apache License 2.0](LICENSE)
+- **Whisper**: OpenAI's speech recognition model
+- **llama-cpp-python**: Python bindings for llama.cpp
+- **faster-whisper**: CTranslate2-based Whisper implementation
+- **sentence-transformers**: Semantic search embeddings
