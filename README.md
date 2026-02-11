@@ -8,7 +8,7 @@ TurboScribe uses OpenAI's Whisper models to transcribe long-form audio files (ho
 
 ## Download
 
-**[📥 Download TurboScribe-Windows.zip](https://github.com/dparksports/turboscribe/releases/latest/download/TurboScribe-Windows.zip)**
+**[📥 Download TurboScribe_v3.3.3.zip](https://github.com/dparksports/turboscribe/releases/download/v3.3.3/TurboScribe_v3.3.3.zip)**
 
 Extract the zip and run `TurboScribe.exe` — no installation required.
 

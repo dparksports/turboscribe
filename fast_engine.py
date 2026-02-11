@@ -1,15 +1,28 @@
 import argparse
 import torch
-from faster_whisper import WhisperModel
 import sys
-
-# Force unbuffered output for real-time UI updates
-sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import os
 import json
 from datetime import datetime
-
 import multiprocessing
+
+# Force unbuffered output for real-time UI updates
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
+# Windows DLL fix: add torch\lib to DLL search path so CTranslate2 can find CUDA DLLs
+if sys.platform == "win32":
+    try:
+        import importlib.util
+        torch_spec = importlib.util.find_spec("torch")
+        if torch_spec and torch_spec.submodule_search_locations:
+            torch_lib = os.path.join(torch_spec.submodule_search_locations[0], "lib")
+            if os.path.isdir(torch_lib):
+                os.add_dll_directory(torch_lib)
+                os.environ["PATH"] = torch_lib + ";" + os.environ.get("PATH", "")
+    except Exception:
+        pass  # Non-fatal: if torch isn't installed yet, faster_whisper import will fail anyway
+
+from faster_whisper import WhisperModel
 
 # Device Configuration
 def get_device_config(device_override=None):
@@ -34,6 +47,20 @@ def get_device_config(device_override=None):
 DEVICE, COMPUTE = get_device_config()
 
 MEDIA_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.wav', '.mp3', '.flac', '.m4a', '.webm', '.aac', '.wma', '.ogg', '.m4v', '.3gp', '.ts', '.mpg', '.mpeg'}
+
+def load_whisper_model(model_name, device=None, compute=None):
+    """Centralized Whisper model loader with error logging and CPU fallback."""
+    device = device or DEVICE
+    compute = compute or COMPUTE
+    try:
+        print(f"[MODEL] Loading {model_name} on {device} ({compute})...")
+        return WhisperModel(model_name, device=device, compute_type=compute)
+    except Exception as e:
+        if device == "cuda":
+            print(f"[WARNING] GPU load failed: {e}")
+            print(f"[MODEL] Falling back to CPU (int8)...")
+            return WhisperModel(model_name, device="cpu", compute_type="int8")
+        raise
 
 def find_media_files(directory):
     """Recursively find all media files in a directory."""
@@ -255,7 +282,7 @@ def run_scanner(file_path, use_vad=True, beam_size=1):
     print(f"[STATUS] Scanning {file_path}...")
     print(f"[STATUS] VAD: {'ON' if use_vad else 'OFF'}")
 
-    model = WhisperModel("tiny.en", device=DEVICE, compute_type=COMPUTE)
+    model = load_whisper_model("tiny.en")
 
     transcribe_opts = dict(
         vad_filter=use_vad,
@@ -285,9 +312,10 @@ def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, ski
     print(f"[BATCH] Found {total} media files in: {directory}")
     print(f"[BATCH] VAD: {'ON' if use_vad else 'OFF (outdoor/noisy mode)'}")
 
+    model_was_provided = model is not None
     if model is None:
         print(f"[BATCH] Loading tiny.en model (one-time)...")
-        model = WhisperModel("tiny.en", device=DEVICE, compute_type=COMPUTE)
+        model = load_whisper_model("tiny.en")
     else:
         print(f"[BATCH] Using pre-loaded model...")
 
@@ -381,7 +409,7 @@ def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, ski
         "total_files": total,
         "files_with_voice": files_with_voice,
         "results": results,
-        "scan_model": "tiny.en" if model is None else "custom"
+        "scan_model": "tiny.en" if not model_was_provided else "custom"
     }
 
     with open(report_path, "w", encoding="utf-8") as f:
@@ -403,11 +431,22 @@ def run_transcriber(file_path, start, end, model=None, model_name="large-v3", ou
     Extracts the specific meeting and applies Large-v3.
     Saves transcription to a .txt file.
     """
+    # Check skip_existing BEFORE expensive model load
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    if output_dir:
+        out_path = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
+    else:
+        out_path = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
+
+    if skip_existing and os.path.exists(out_path):
+        print(f"[SKIPPING] Target exists: {out_path}")
+        return []
+
     print(f"[STATUS] Transcribing: {file_path}")
     print(f"[STATUS] Range: {start:.1f}s - {end:.1f}s")
 
     if model is None:
-        model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
+        model = load_whisper_model(model_name)
 
     segments, _ = model.transcribe(
         file_path,
@@ -423,19 +462,10 @@ def run_transcriber(file_path, start, end, model=None, model_name="large-v3", ou
         lines.append(line)
         print(f"[TEXT] {s.start:.2f}|{s.end:.2f}|{s.text.strip()}")
 
-    # Determine output path — include model name for comparison
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    # Append if file exists (multiple blocks for same file)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-        out_path = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
-    else:
-        out_path = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
 
-    if skip_existing and os.path.exists(out_path):
-        print(f"[SKIPPING] Target exists: {out_path}")
-        return []
-
-    # Append if file exists (multiple blocks for same file)
     mode = "a" if os.path.exists(out_path) else "w"
     with open(out_path, mode, encoding="utf-8") as f:
         f.write(f"--- Transcription [{start:.1f}s - {end:.1f}s] ---\n")
@@ -471,7 +501,7 @@ def run_batch_transcriber(report_path=None, output_dir=None, skip_existing=False
     print(f"[BATCH] Found {len(voice_files)} files with voice ({total_blocks} blocks to transcribe)")
     print(f"[BATCH] Loading {model_name} model (one-time)...")
 
-    model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
+    model = load_whisper_model(model_name)
 
     block_num = 0
     for i, entry in enumerate(voice_files, 1):
@@ -503,7 +533,7 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
     print(f"[BATCH] VAD: {'ON' if use_vad else 'OFF (outdoor/noisy mode)'}")
     print(f"[BATCH] Loading {model_name} model (one-time)...")
 
-    model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
+    model = load_whisper_model(model_name)
 
     transcribed = 0
     errors = 0
@@ -591,7 +621,7 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
     print(f"[STATUS] VAD: {'ON' if use_vad else 'OFF'}")
     print(f"[BATCH] Loading {model_name} model...")
 
-    model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
+    model = load_whisper_model(model_name)
 
     transcribe_opts = dict(
         beam_size=beam_size,
@@ -646,7 +676,7 @@ def run_search_transcripts(directory, query):
 
     for root, dirs, files in os.walk(directory):
         for f in files:
-            if f.endswith("_transcript.txt"):
+            if "_transcript" in f and f.endswith(".txt"):
                 transcript_files.append(os.path.join(root, f))
 
     print(f"[SEARCH] Searching {len(transcript_files)} transcript files for: {query}")
@@ -1360,7 +1390,7 @@ def run_server():
     print("[SERVER] Loading core models...", flush=True)
     try:
         # Load tiny model to cache it in VRAM/RAM
-        scanner_model = WhisperModel("tiny.en", device=DEVICE, compute_type=COMPUTE)
+        scanner_model = load_whisper_model("tiny.en")
         print("[SERVER] Engine ready.", flush=True)
     except Exception as e:
         print(f"[SERVER] Init failed: {e}", flush=True)
@@ -1383,18 +1413,21 @@ def run_server():
                 print(json.dumps({"status": "pong"}), flush=True)
                 
             elif action == "scan":
-                # Ensure tiny model is loaded
-                if current_model_name != "tiny.en":
-                     print("[SERVER] Switching to tiny.en model...", flush=True)
-                     current_model = WhisperModel("tiny.en", device=DEVICE, compute_type=COMPUTE)
-                     current_model_name = "tiny.en"
-                
-                directory = cmd.get("directory")
-                use_vad = cmd.get("use_vad", True)
-                report_path = cmd.get("report_path")
-                
-                run_batch_scanner(directory, use_vad=use_vad, report_path=report_path, model=current_model)
-                print(json.dumps({"status": "complete", "action": "scan"}), flush=True)
+                try:
+                    # Ensure tiny model is loaded
+                    if current_model_name != "tiny.en":
+                         print("[SERVER] Switching to tiny.en model...", flush=True)
+                         current_model = load_whisper_model("tiny.en")
+                         current_model_name = "tiny.en"
+                    
+                    directory = cmd.get("directory")
+                    use_vad = cmd.get("use_vad", True)
+                    report_path = cmd.get("report_path")
+                    
+                    run_batch_scanner(directory, use_vad=use_vad, report_path=report_path, model=current_model)
+                    print(json.dumps({"status": "complete", "action": "scan"}), flush=True)
+                except Exception as e:
+                    print(json.dumps({"status": "error", "action": "scan", "message": str(e)}), flush=True)
 
             elif action == "vad_scan":
                 directory = cmd.get("directory")
@@ -1410,7 +1443,7 @@ def run_server():
                 model_name = cmd.get("model", "large-v3")
                 if current_model_name != model_name:
                     print(f"[SERVER] Switching to {model_name} model...", flush=True)
-                    current_model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
+                    current_model = load_whisper_model(model_name)
                     current_model_name = model_name
                 
                 file_path = cmd.get("file")
