@@ -90,7 +90,7 @@
                                 <TextBlock Text="Whisper Model:" Foreground="{StaticResource TextDimBrush}" 
                                            FontSize="11" VerticalAlignment="Center" Margin="10,0,4,0"/>
                                 <ComboBox x:Name="WhisperModelCombo" Width="130" FontSize="10"
-                                          SelectedIndex="8"
+                                          SelectedIndex="1"
                                           ToolTip="Whisper model used for batch transcription">
                                     <ComboBoxItem Content="tiny" Tag="tiny"/>
                                     <ComboBoxItem Content="tiny.en" Tag="tiny.en"/>
@@ -105,6 +105,20 @@
                                     <ComboBoxItem Content="large-v3" Tag="large-v3"/>
                                     <ComboBoxItem Content="turbo" Tag="turbo"/>
                                 </ComboBox>
+                                <TextBlock Text="Beam:" Foreground="{StaticResource TextDimBrush}" 
+                                           FontSize="11" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                <ComboBox x:Name="BeamSizeCombo" Width="75" FontSize="10"
+                                          ToolTip="Beam size: 1=fast/greedy, 5=accurate. Auto picks based on model.">
+                                    <ComboBoxItem Content="Auto" Tag="0" IsSelected="True"/>
+                                    <ComboBoxItem Content="1 (Fast)" Tag="1"/>
+                                    <ComboBoxItem Content="2" Tag="2"/>
+                                    <ComboBoxItem Content="3" Tag="3"/>
+                                    <ComboBoxItem Content="5 (Best)" Tag="5"/>
+                                </ComboBox>
+                                <Button x:Name="ModelInfoBtn" Content="ℹ️" FontSize="12" Padding="4,2"
+                                        Style="{StaticResource AccentButton}" Margin="4,0,0,0"
+                                        Click="ModelInfoBtn_Click"
+                                        ToolTip="View model comparison: speed vs accuracy"/>
                                 <CheckBox x:Name="SkipExistingCheck" Content="Skip existing" 
                                           VerticalAlignment="Center" Margin="10,0,0,0"
                                           Foreground="{StaticResource TextDimBrush}" FontSize="11"
@@ -119,7 +133,19 @@
                                 <Button x:Name="FindMeetingsBtn" Content="🤖 Detect Meetings" 
                                         Style="{StaticResource AccentButton}"
                                         Click="FindMeetingsBtn_Click"
-                                        ToolTip="Use LLM to classify existing transcripts as real meetings vs hallucinations"/>
+                                        ToolTip="Use LLM to classify ALL transcript versions (all models) as real meetings vs hallucinations"/>
+                                <CheckBox x:Name="SkipCheckedFilesCheck" Content="Skip checked" 
+                                          VerticalAlignment="Center" Margin="10,0,0,0"
+                                          Foreground="{StaticResource TextDimBrush}" FontSize="11"
+                                          ToolTip="Skip transcript files that were already analyzed in previous detection runs"/>
+                                <Button x:Name="CancelDetectionBtn" Content="⏹ Cancel" 
+                                        Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                        Click="CancelDetectionBtn_Click" IsEnabled="False"
+                                        ToolTip="Cancel the current meeting detection process"/>
+                                <Button x:Name="ReloadModelBtn" Content="🔄 Reload Model" 
+                                        Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                                        Click="ReloadModelBtn_Click"
+                                        ToolTip="Restart the engine with the currently selected model"/>
                                 <TextBlock x:Name="TranscribeCountLabel" VerticalAlignment="Center"
                                            Foreground="{StaticResource TextDimBrush}" FontSize="12"
                                            Margin="12,0,0,0" Text="Set directory and click Transcribe"/>
@@ -645,6 +671,13 @@
                                         <ComboBoxItem Content="Qwen2 7B (Q4)" Tag="qwen2-7b"/>
                                         <ComboBoxItem Content="Gemma 2 2B (Q4)" Tag="gemma-2-2b"/>
                                     </ComboBox>
+                                    <Button x:Name="LoadLlmBtn" Content="⚡ Load"
+                                            Style="{StaticResource AccentButton}" FontSize="10" Padding="6,3"
+                                            Margin="4,0,0,0" Click="LoadLlmBtn_Click"
+                                            ToolTip="Pre-load the local LLM model into memory"/>
+                                    <TextBlock x:Name="LlmStatusLabel" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                                               Margin="4,0,0,0" Text=""/>
                                     <StackPanel x:Name="CloudApiPanel" Orientation="Horizontal"
                                                 Margin="4,0,0,0" Visibility="Collapsed">
                                         <PasswordBox x:Name="ApiKeyBox" Width="180" FontSize="10"
@@ -1058,14 +1091,32 @@
                 <Border Background="{StaticResource SurfaceBrush}"
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                         CornerRadius="8" Padding="2" Margin="0,12,0,0">
-                    <TextBox x:Name="LogBox" IsReadOnly="True"
-                             Background="Transparent"
-                             Foreground="{StaticResource TextDimBrush}"
-                             BorderThickness="0"
-                             FontFamily="Cascadia Mono,Consolas,Courier New"
-                             FontSize="11" Padding="8" TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             AcceptsReturn="True"/>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,6,8,4">
+                            <Button Content="🔄 Refresh" Style="{StaticResource AccentButton}" 
+                                    FontSize="10" Padding="6,3" Click="RefreshLogBtn_Click"
+                                    ToolTip="Reload log from file"/>
+                            <Button Content="🗑 Clear" Style="{StaticResource AccentButton}" 
+                                    FontSize="10" Padding="6,3" Margin="4,0,0,0" Click="ClearLogBtn_Click"
+                                    ToolTip="Clear the log file"/>
+                            <TextBlock Text="Auto-refresh active" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextDimBrush}" FontSize="10"
+                                       Margin="12,0,0,0"/>
+                        </StackPanel>
+                        <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True"
+                                 Background="Transparent"
+                                 Foreground="{StaticResource TextDimBrush}"
+                                 BorderThickness="0"
+                                 FontFamily="Cascadia Mono,Consolas,Courier New"
+                                 FontSize="11" Padding="8" TextWrapping="NoWrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 AcceptsReturn="True"/>
+                    </Grid>
                 </Border>
             </TabItem>
 
@@ -1080,11 +1131,6 @@
                     <GroupBox Header="Scanner Settings" BorderBrush="{StaticResource BorderBrush}" 
                               Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,16" Padding="12">
                         <StackPanel>
-                            <CheckBox x:Name="NoVadCheck" Content="No VAD (Outdoor/Noisy Mode)" 
-                                      Foreground="{StaticResource TextBrush}" FontSize="13" 
-                                      IsChecked="True" Margin="0,4"/>
-                            <TextBlock Text="Disable Voice Activity Detection if your audio has loud background noise." 
-                                       FontSize="11" Foreground="{StaticResource TextDimBrush}" Margin="24,0,0,12"/>
                             
                             <CheckBox x:Name="EnglishOnlyCheck" Content="English Only Models" 
                                       Foreground="{StaticResource TextBrush}" FontSize="13" 
@@ -1118,15 +1164,13 @@
                                 <ComboBoxItem Content="Manual (Click to refresh)" Tag="0"/>
                             </ComboBox>
 
-                            <TextBlock Text="Voice Detection (VAD) Sensitivity" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,12,0,4"/>
-                            <ComboBox x:Name="VadSensitivityCombo" Width="200" HorizontalAlignment="Left"
-                                      SelectionChanged="VadSensitivityCombo_SelectionChanged"
-                                      ToolTip="Lower values detect quieter/distant speech but may give false positives. Higher values are more strict.">
-                                <ComboBoxItem Content="0.3 — Sensitive (outdoor)" Tag="0.3"/>
-                                <ComboBoxItem Content="0.4 — Moderate" Tag="0.4"/>
-                                <ComboBoxItem Content="0.5 — Default" Tag="0.5" IsSelected="True"/>
-                                <ComboBoxItem Content="0.6 — Conservative" Tag="0.6"/>
-                                <ComboBoxItem Content="0.8 — Strict (clear speech)" Tag="0.8"/>
+                            <TextBlock Text="Log Refresh Rate" Foreground="{StaticResource TextBrush}" FontSize="13" Margin="0,12,0,4"/>
+                            <ComboBox x:Name="LogRefreshCombo" Width="200" HorizontalAlignment="Left"
+                                      SelectionChanged="LogRefreshCombo_SelectionChanged">
+                                <ComboBoxItem Content="1 second (Default)" Tag="1" IsSelected="True"/>
+                                <ComboBoxItem Content="2 seconds" Tag="2"/>
+                                <ComboBoxItem Content="5 seconds" Tag="5"/>
+                                <ComboBoxItem Content="Manual (Refresh button only)" Tag="0"/>
                             </ComboBox>
                         </StackPanel>
                     </GroupBox>

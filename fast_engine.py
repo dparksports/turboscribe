@@ -247,7 +247,7 @@ def run_batch_vad_scan(directory, threshold=0.5, report_path=None, skip_existing
     print(f"[VAD-SCAN] Report saved to: {report_path}")
 
 
-def run_scanner(file_path, use_vad=True):
+def run_scanner(file_path, use_vad=True, beam_size=1):
     """
     MODE 1: SCOUT (Speed)
     Scans using Tiny Model with optional VAD.
@@ -259,7 +259,7 @@ def run_scanner(file_path, use_vad=True):
 
     transcribe_opts = dict(
         vad_filter=use_vad,
-        beam_size=1
+        beam_size=beam_size
     )
     if use_vad:
         transcribe_opts["vad_parameters"] = dict(min_silence_duration_ms=2000)
@@ -274,7 +274,7 @@ def run_scanner(file_path, use_vad=True):
     if segment_count == 0:
         print("[INFO] No speech detected.")
 
-def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, skip_existing=False):
+def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, skip_existing=False, beam_size=1):
     """
     MODE 3: BATCH SCOUT
     Scans all media files in a directory for voice activity.
@@ -327,7 +327,7 @@ def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, ski
         try:
             transcribe_opts = dict(
                 vad_filter=use_vad,
-                beam_size=1
+                beam_size=beam_size
             )
             if use_vad:
                 transcribe_opts["vad_parameters"] = dict(min_silence_duration_ms=2000)
@@ -397,7 +397,7 @@ def run_batch_scanner(directory, use_vad=True, report_path=None, model=None, ski
                 for cmd in r["transcribe_cmds"]:
                     print(f"    > {cmd}")
 
-def run_transcriber(file_path, start, end, model=None, model_name="large-v3", output_dir=None, skip_existing=False):
+def run_transcriber(file_path, start, end, model=None, model_name="large-v3", output_dir=None, skip_existing=False, beam_size=5):
     """
     MODE 2: SNIPER (Accuracy)
     Extracts the specific meeting and applies Large-v3.
@@ -412,7 +412,7 @@ def run_transcriber(file_path, start, end, model=None, model_name="large-v3", ou
     segments, _ = model.transcribe(
         file_path,
         clip_timestamps=f"{start},{end}",
-        beam_size=5,
+        beam_size=beam_size,
         vad_filter=True
     )
 
@@ -424,13 +424,12 @@ def run_transcriber(file_path, start, end, model=None, model_name="large-v3", ou
         print(f"[TEXT] {s.start:.2f}|{s.end:.2f}|{s.text.strip()}")
 
     # Determine output path — include model name for comparison
-    safe_model = model_name.replace(".", "_").replace("-", "_")
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-        out_path = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
+        out_path = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
     else:
-        out_path = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
+        out_path = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
 
     if skip_existing and os.path.exists(out_path):
         print(f"[SKIPPING] Target exists: {out_path}")
@@ -448,7 +447,7 @@ def run_transcriber(file_path, start, end, model=None, model_name="large-v3", ou
     print(f"[SAVED] {out_path}")
     return lines
 
-def run_batch_transcriber(report_path=None, output_dir=None, skip_existing=False, model_name="large-v1"):
+def run_batch_transcriber(report_path=None, output_dir=None, skip_existing=False, model_name="large-v1", beam_size=5):
     """
     MODE 4: BATCH SNIPER
     Reads the scan report and transcribes all detected voice segments
@@ -483,7 +482,7 @@ def run_batch_transcriber(report_path=None, output_dir=None, skip_existing=False
             block_num += 1
             print(f"  Block {block_num}/{total_blocks}: {b['start']:.1f}s - {b['end']:.1f}s")
             try:
-                run_transcriber(file_path, b["start"], b["end"], model=model, model_name=model_name, output_dir=output_dir, skip_existing=skip_existing)
+                run_transcriber(file_path, b["start"], b["end"], model=model, model_name=model_name, output_dir=output_dir, skip_existing=skip_existing, beam_size=beam_size)
             except Exception as e:
                 print(f"  [ERROR] {e}")
 
@@ -493,7 +492,7 @@ def run_batch_transcriber(report_path=None, output_dir=None, skip_existing=False
     print(f"Files processed: {len(voice_files)}")
     print(f"Blocks transcribed: {block_num}")
 
-def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_existing=False, model_name="large-v1"):
+def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_existing=False, model_name="large-v1", beam_size=5):
     """
     MODE 5: FULL BATCH TRANSCRIBE
     Transcribes ALL media files in a directory using the specified model.
@@ -517,12 +516,11 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
         # Actually we need to calculate out_path to know if we skip.
         # But out_path logic is duplicated inside loop.
         
-        safe_model = model_name.replace(".", "_").replace("-", "_")
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         if output_dir:
-            out_check = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
+            out_check = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
         else:
-            out_check = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
+            out_check = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
             
         if skip_existing and os.path.exists(out_check):
              print(f"\n[{i}/{total}] [SKIPPING] {file_path}")
@@ -531,7 +529,7 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
         print(f"\n[{i}/{total}] Transcribing: {file_path}")
         try:
             transcribe_opts = dict(
-                beam_size=5,
+                beam_size=beam_size,
                 vad_filter=use_vad,
             )
             if use_vad:
@@ -548,9 +546,9 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
             if lines:
                 base_name = os.path.splitext(os.path.basename(file_path))[0]
                 if output_dir:
-                    out_path = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
+                    out_path = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
                 else:
-                    out_path = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
+                    out_path = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
                 
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(f"--- Full Transcription ({info.duration:.1f}s) ---\n")
@@ -572,7 +570,7 @@ def run_batch_transcribe_dir(directory, use_vad=True, output_dir=None, skip_exis
     print(f"Transcribed: {transcribed}")
     print(f"Errors:      {errors}")
 
-def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_dir=None, skip_existing=False):
+def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_dir=None, skip_existing=False, beam_size=5):
     """
     MODE 6: FULL FILE TRANSCRIBE
     Transcribes a single media file with the specified model.
@@ -581,11 +579,10 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
     print(f"[STATUS] Model: {model_name}")
 
     base_name = os.path.splitext(os.path.basename(file_path))[0]
-    safe_model = model_name.replace("/", "_").replace("\\", "_")
     if output_dir:
-        out_check = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
+        out_check = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
     else:
-        out_check = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
+        out_check = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
 
     if skip_existing and os.path.exists(out_check):
         print(f"[SKIPPING] Target exists: {out_check}")
@@ -597,7 +594,7 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
     model = WhisperModel(model_name, device=DEVICE, compute_type=COMPUTE)
 
     transcribe_opts = dict(
-        beam_size=5,
+        beam_size=beam_size,
         vad_filter=use_vad,
     )
     if use_vad:
@@ -614,13 +611,13 @@ def run_transcribe_file(file_path, model_name="large-v3", use_vad=True, output_d
     if lines:
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         # Use model name in filename for versioning
-        safe_model = model_name.replace("/", "_").replace("\\", "_")
+        # Use model name directly in filename (dots/hyphens are valid in filenames)
         
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            out_path = os.path.join(output_dir, f"{base_name}_transcript_{safe_model}.txt")
+            out_path = os.path.join(output_dir, f"{base_name}_transcript_{model_name}.txt")
         else:
-            out_path = f"{os.path.splitext(file_path)[0]}_transcript_{safe_model}.txt"
+            out_path = f"{os.path.splitext(file_path)[0]}_transcript_{model_name}.txt"
             
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(f"--- Transcription ({model_name}, {info.duration:.1f}s) ---\n")
@@ -876,29 +873,37 @@ JSON:"""
         print(f"[ERROR] Analysis failed: {e}")
 
 
-def _analyze_local(prompt, model_name=None):
-    """Run analysis using llama-cpp-python with a GGUF model."""
+# Cached LLM instance to avoid reloading for batch operations
+_cached_llm = None
+_cached_llm_name = None
+
+_gguf_models = {
+    "llama-3.1-8b": ("bartowski/Meta-Llama-3.1-8B-Instruct-GGUF", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"),
+    "mistral-7b": ("TheBloke/Mistral-7B-Instruct-v0.2-GGUF", "mistral-7b-instruct-v0.2.Q4_K_M.gguf"),
+    "phi-3-mini": ("bartowski/Phi-3.1-mini-4k-instruct-GGUF", "Phi-3.1-mini-4k-instruct-Q4_K_M.gguf"),
+    "qwen2-7b": ("Qwen/Qwen2-7B-Instruct-GGUF", "qwen2-7b-instruct-q4_k_m.gguf"),
+    "gemma-2-2b": ("bartowski/gemma-2-2b-it-GGUF", "gemma-2-2b-it-Q4_K_M.gguf"),
+}
+
+def _load_llm(model_name=None):
+    """Load (or return cached) LLM model for local inference."""
+    global _cached_llm, _cached_llm_name
+
+    if not model_name or model_name not in _gguf_models:
+        model_name = "phi-3-mini"
+
+    # Return cached if same model
+    if _cached_llm is not None and _cached_llm_name == model_name:
+        return _cached_llm
+
     try:
         from llama_cpp import Llama
     except ImportError:
         print("[ERROR] llama-cpp-python not installed. Run 'Install Libraries' in Settings.")
         return None
 
-    # Default model repo and file
-    gguf_models = {
-        "llama-3.1-8b": ("bartowski/Meta-Llama-3.1-8B-Instruct-GGUF", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"),
-        "mistral-7b": ("TheBloke/Mistral-7B-Instruct-v0.2-GGUF", "mistral-7b-instruct-v0.2.Q4_K_M.gguf"),
-        "phi-3-mini": ("bartowski/Phi-3.1-mini-4k-instruct-GGUF", "Phi-3.1-mini-4k-instruct-Q4_K_M.gguf"),
-        "qwen2-7b": ("Qwen/Qwen2-7B-Instruct-GGUF", "qwen2-7b-instruct-q4_k_m.gguf"),
-        "gemma-2-2b": ("bartowski/gemma-2-2b-it-GGUF", "gemma-2-2b-it-Q4_K_M.gguf"),
-    }
+    repo_id, filename = _gguf_models[model_name]
 
-    if not model_name or model_name not in gguf_models:
-        model_name = "phi-3-mini"  # Default: smallest, fastest
-
-    repo_id, filename = gguf_models[model_name]
-
-    # Download model if needed
     try:
         from huggingface_hub import hf_hub_download
         print(f"[ANALYZE] Downloading/loading {model_name} ({filename})...")
@@ -910,14 +915,43 @@ def _analyze_local(prompt, model_name=None):
         print(f"[ERROR] Failed to download model: {e}")
         return None
 
-    print(f"[ANALYZE] Running local inference with {model_name}...")
+    print(f"[ANALYZE] Loading LLM into memory (GPU)...")
     try:
         llm = Llama(
             model_path=model_path,
             n_ctx=4096,
-            n_gpu_layers=0,  # Force CPU — GPU may be in use by faster-whisper
+            n_gpu_layers=-1,  # Offload all layers to GPU for fastest inference
             verbose=False
         )
+        print(f"[ANALYZE] LLM loaded on GPU successfully")
+        _cached_llm = llm
+        _cached_llm_name = model_name
+        return llm
+    except Exception as e:
+        print(f"[WARNING] GPU loading failed ({e}), falling back to CPU...")
+        try:
+            llm = Llama(
+                model_path=model_path,
+                n_ctx=4096,
+                n_gpu_layers=0,  # CPU fallback
+                verbose=False
+            )
+            print(f"[ANALYZE] LLM loaded on CPU (GPU unavailable — VRAM may be in use by Whisper)")
+            _cached_llm = llm
+            _cached_llm_name = model_name
+            return llm
+        except Exception as e2:
+            print(f"[ERROR] Failed to load LLM on both GPU and CPU: {e2}")
+            return None
+
+def _analyze_local(prompt, model_name=None, llm_instance=None):
+    """Run analysis using llama-cpp-python with a GGUF model."""
+    llm = llm_instance or _load_llm(model_name)
+    if llm is None:
+        return None
+
+    print(f"[ANALYZE] Running local inference...")
+    try:
         output = llm(
             prompt,
             max_tokens=2048,
@@ -1004,7 +1038,7 @@ def _analyze_claude(prompt, api_key, model="claude-sonnet-4-20250514"):
 # =============================================================================
 
 def run_detect_meetings(directory, provider="local", model_name=None,
-                        api_key=None, cloud_model=None, transcript_dir=None):
+                        api_key=None, cloud_model=None, transcript_dir=None, skip_checked=False):
     """
     MODE 10: DETECT MEETINGS
     Scans all transcript files and uses LLM to determine if each
@@ -1037,9 +1071,44 @@ def run_detect_meetings(directory, provider="local", model_name=None,
     results = []
     meetings_found = 0
 
+    # Skip previously analyzed files if requested
+    previously_checked = set()
+    if skip_checked:
+        # Look for existing detection report in the directory
+        report_path = os.path.join(directory, "detection_report.json")
+        if os.path.exists(report_path):
+            try:
+                with open(report_path, "r", encoding="utf-8") as rf:
+                    prev_results = json.load(rf)
+                    for r in prev_results:
+                        previously_checked.add(os.path.abspath(r.get("file", "")))
+                    # Carry forward previous results
+                    results.extend(prev_results)
+                    meetings_found += sum(1 for r in prev_results if r.get("has_meeting"))
+                    print(f"[DETECT] Loaded {len(prev_results)} previously checked files, skipping them")
+            except Exception as ex:
+                print(f"[WARNING] Could not load previous report: {ex}")
+        
+        transcript_files = [f for f in transcript_files if os.path.abspath(f) not in previously_checked]
+        total = len(transcript_files)
+        print(f"[DETECT] {total} remaining files to analyze (after skipping)")
+        if total == 0:
+            print("[DETECT] All files already checked!")
+            print(json.dumps({"status": "complete", "action": "detect_meetings", "results": results}))
+            return
+
+    # Pre-load LLM once for the entire batch (avoids reloading per file)
+    llm_instance = None
+    if provider == "local":
+        llm_instance = _load_llm(model_name)
+        if llm_instance is None:
+            print("[ERROR] Failed to load local LLM model. Aborting.")
+            return
+
     for i, fpath in enumerate(transcript_files, 1):
         fname = os.path.basename(fpath)
         print(f"\n[{i}/{total}] Analyzing: {fname}")
+        print(f"[DETECT_PROGRESS] {i}/{total} — {fname}")
 
         try:
             with open(fpath, "r", encoding="utf-8") as f:
@@ -1096,7 +1165,7 @@ JSON:"""
 
             # Call LLM
             if provider == "local":
-                result_text = _analyze_local(prompt, model_name)
+                result_text = _analyze_local(prompt, model_name, llm_instance=llm_instance)
             elif provider == "gemini":
                 result_text = _analyze_gemini(prompt, api_key, cloud_model or "gemini-2.0-flash")
             elif provider == "openai":
@@ -1168,10 +1237,19 @@ JSON:"""
 
     print(f"\n[DETECTION_REPORT] {json.dumps(results)}")
 
+    # Save report to file for --skip-checked feature
+    report_path = os.path.join(directory, "detection_report.json")
+    try:
+        with open(report_path, "w", encoding="utf-8") as rf:
+            json.dump(results, rf, indent=2)
+        print(f"[DETECT] Report saved to {report_path}")
+    except Exception as ex:
+        print(f"[WARNING] Could not save report: {ex}")
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()  # Needed for PyInstaller on Windows
     parser = argparse.ArgumentParser(description="Fast Whisper Voice Scanner & Transcriber")
-    parser.add_argument("mode", choices=["scan", "batch_scan", "vad_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts", "semantic_search", "analyze", "detect_meetings", "server"])
+    parser.add_argument("mode", choices=["scan", "batch_scan", "vad_scan", "transcribe", "batch_transcribe", "batch_transcribe_dir", "transcribe_file", "search_transcripts", "semantic_search", "analyze", "detect_meetings", "load_llm", "server"])
     parser.add_argument("file", nargs="?", help="Path to media file (for scan/transcribe)")
     parser.add_argument("--dir", help="Directory to batch scan or transcribe")
     parser.add_argument("--start", type=float)
@@ -1190,6 +1268,8 @@ if __name__ == "__main__":
     parser.add_argument("--cloud-model", help="Cloud model name")
     parser.add_argument("--analyze-type", choices=["summarize", "outline", "detect_meeting"], default="summarize", help="Analysis type")
     parser.add_argument("--vad-threshold", type=float, default=0.5, help="Silero VAD sensitivity threshold (0.0-1.0, lower = more sensitive)")
+    parser.add_argument("--beam-size", type=int, default=None, help="Beam size for transcription (1=greedy/fast, 5=accurate/slow)")
+    parser.add_argument("--skip-checked", action="store_true", help="Skip transcript files already analyzed in previous detection runs")
     args = parser.parse_args()
 
     # Apply device override before any model loading
@@ -1200,14 +1280,25 @@ if __name__ == "__main__":
 
     use_vad = not args.no_vad
 
+    # Default beam_size per model category if not specified
+    beam = args.beam_size
+    if not beam:  # None or 0 = auto-select based on model
+        model_lower = (args.model or "").lower()
+        if model_lower.startswith("tiny") or model_lower.startswith("base"):
+            beam = 1
+        elif model_lower.startswith("small"):
+            beam = 3
+        else:
+            beam = 5
+
     if args.mode == "scan":
-        run_scanner(args.file, use_vad=use_vad)
+        run_scanner(args.file, use_vad=use_vad, beam_size=beam)
     elif args.mode == "batch_scan":
         directory = args.dir or args.file
         if not directory:
             print("Error: Provide a directory with --dir or as positional argument")
             exit(1)
-        run_batch_scanner(directory, use_vad=use_vad, report_path=args.report)
+        run_batch_scanner(directory, use_vad=use_vad, report_path=args.report, beam_size=beam)
     elif args.mode == "vad_scan":
         directory = args.dir or args.file
         if not directory:
@@ -1215,20 +1306,20 @@ if __name__ == "__main__":
             exit(1)
         run_batch_vad_scan(directory, threshold=args.vad_threshold, report_path=args.report, skip_existing=args.skip_existing)
     elif args.mode == "transcribe":
-        run_transcriber(args.file, args.start, args.end, output_dir=args.output_dir, skip_existing=args.skip_existing)
+        run_transcriber(args.file, args.start, args.end, output_dir=args.output_dir, skip_existing=args.skip_existing, beam_size=beam)
     elif args.mode == "batch_transcribe":
-        run_batch_transcriber(args.report, output_dir=args.output_dir, skip_existing=args.skip_existing, model_name=args.model)
+        run_batch_transcriber(args.report, output_dir=args.output_dir, skip_existing=args.skip_existing, model_name=args.model, beam_size=beam)
     elif args.mode == "batch_transcribe_dir":
         directory = args.dir or args.file
         if not directory:
             print("Error: Provide a directory with --dir or as positional argument")
             exit(1)
-        run_batch_transcribe_dir(directory, use_vad=use_vad, output_dir=args.output_dir, skip_existing=args.skip_existing, model_name=args.model)
+        run_batch_transcribe_dir(directory, use_vad=use_vad, output_dir=args.output_dir, skip_existing=args.skip_existing, model_name=args.model, beam_size=beam)
     elif args.mode == "transcribe_file":
         if not args.file:
             print("Error: Provide a file path")
             exit(1)
-        run_transcribe_file(args.file, model_name=args.model, use_vad=use_vad, output_dir=args.output_dir, skip_existing=args.skip_existing)
+        run_transcribe_file(args.file, model_name=args.model, use_vad=use_vad, output_dir=args.output_dir, skip_existing=args.skip_existing, beam_size=beam)
     elif args.mode == "search_transcripts":
         directory = args.dir or "."
         if not args.query:
@@ -1251,7 +1342,14 @@ if __name__ == "__main__":
         directory = args.dir or args.file or "."
         run_detect_meetings(directory, provider=args.provider,
                            model_name=args.model, api_key=args.api_key,
-                           cloud_model=args.cloud_model, transcript_dir=args.transcript_dir)
+                           cloud_model=args.cloud_model, transcript_dir=args.transcript_dir,
+                           skip_checked=args.skip_checked)
+    elif args.mode == "load_llm":
+        llm = _load_llm(args.model if args.model != "large-v1" else None)
+        if llm is not None:
+            print(f"[LLM_LOADED] {_cached_llm_name}")
+        else:
+            print("[LLM_LOAD_FAILED]")
     elif args.mode == "server":
         run_server()
 

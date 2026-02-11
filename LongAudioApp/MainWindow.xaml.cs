@@ -152,6 +152,10 @@ public partial class MainWindow : Window
     private bool _isLoadingMediaFile;  // prevents ModelSelector_SelectionChanged from firing during file load
     private bool _gpuHardwareAvailable;
     private bool _cudaPytorchReady;
+    private string _logFilePath = null!;
+    private DispatcherTimer? _logRefreshTimer;
+    private long _lastLogPosition;  // tracks last read position for efficient tail-reading
+    private StreamWriter? _logWriter;
 
     protected override void OnClosed(EventArgs e)
     {
@@ -159,6 +163,8 @@ public partial class MainWindow : Window
         _runner?.Dispose();
         _timestampRunner?.Dispose();
         _gpuTimer?.Stop();
+        _logRefreshTimer?.Stop();
+        _logWriter?.Dispose();
     }
 
     public MainWindow()
@@ -192,6 +198,8 @@ public partial class MainWindow : Window
         var appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LongAudioApp");
         Directory.CreateDirectory(appDataDir);
         _reportPath = Path.Combine(appDataDir, "voice_scan_results.json");
+        _logFilePath = Path.Combine(appDataDir, "engine.log");
+        _logWriter = new StreamWriter(_logFilePath, append: true) { AutoFlush = true };
         
         _runner = new PythonRunner(_scriptDir);
         _timestampRunner = new PythonRunner(_scriptDir);
@@ -206,7 +214,6 @@ public partial class MainWindow : Window
         // Initialize UI from settings
         AnalyticsCheck.IsChecked = _appSettings.AnalyticsEnabled;
         AnalyticsService.IsEnabled = _appSettings.AnalyticsEnabled;
-        NoVadCheck.IsChecked = _appSettings.NoVadEnabled;
         if (!string.IsNullOrEmpty(_appSettings.LastDirectory))
             DirectoryBox.Text = _appSettings.LastDirectory;
         foreach (ComboBoxItem item in GpuRefreshCombo.Items)
@@ -222,14 +229,6 @@ public partial class MainWindow : Window
         SkipExistingCheck.IsChecked = _appSettings.SkipExistingFiles;
         EnglishOnlyCheck.IsChecked = _appSettings.EnglishOnly;
         ApplyEnglishOnlyFilter();
-        foreach (ComboBoxItem item in VadSensitivityCombo.Items)
-        {
-            if (item.Tag?.ToString() == _appSettings.VadSensitivity.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            {
-                item.IsSelected = true;
-                break;
-            }
-        }
         
         foreach (ComboBoxItem item in DeviceCombo.Items)
         {
@@ -250,6 +249,17 @@ public partial class MainWindow : Window
                 break;
             }
         }
+
+        // Restore log refresh rate
+        foreach (ComboBoxItem item in LogRefreshCombo.Items)
+        {
+            if (item.Tag?.ToString() == _appSettings.LogRefreshIntervalSeconds.ToString())
+            {
+                item.IsSelected = true;
+                break;
+            }
+        }
+        StartLogRefreshTimer(_appSettings.LogRefreshIntervalSeconds);
 
         // Restore window position/size
         RestoreWindowPosition();
@@ -339,7 +349,7 @@ public partial class MainWindow : Window
         // Check timestamp venv status is now done via button, not on startup
     }
 
-    private DispatcherTimer _gpuTimer;
+    private DispatcherTimer? _gpuTimer;
     private DispatcherTimer? _engineCheckTimer; // Check for zombies/status
     private AppSettings _appSettings = new();
     private readonly string _settingsPath = Path.Combine(
@@ -696,7 +706,7 @@ public partial class MainWindow : Window
         public string LastDirectory { get; set; } = "";
         public List<string> SelectedDrives { get; set; } = new();
         public List<string> CustomFolders { get; set; } = new();
-        public string WhisperModel { get; set; } = "large-v1";
+        public string WhisperModel { get; set; } = "tiny.en";
         // Window position/size persistence
         public double WindowWidth { get; set; } = 0;
         public double WindowHeight { get; set; } = 0;
@@ -704,6 +714,7 @@ public partial class MainWindow : Window
         public double WindowTop { get; set; } = double.NaN;
         public bool WindowMaximized { get; set; } = false;
         public double VadSensitivity { get; set; } = 0.5; // 0.0-1.0, lower = more sensitive
+        public int LogRefreshIntervalSeconds { get; set; } = 1;
     }
 
     private void GpuRefreshCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -716,14 +727,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void VadSensitivityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (VadSensitivityCombo?.SelectedItem is ComboBoxItem item && double.TryParse(item.Tag?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out double threshold))
-        {
-            _appSettings.VadSensitivity = threshold;
-            SaveAppSettings();
-        }
-    }
+
 
     private void UpdateGpuTimer()
     {
@@ -878,9 +882,33 @@ public partial class MainWindow : Window
             {
                 AnalysisStatusLabel.Text = line.Trim();
             }
+
+            // LLM model load status
+            if (line.StartsWith("[LLM_LOADED] "))
+            {
+                var modelName = line["[LLM_LOADED] ".Length..].Trim();
+                LlmStatusLabel.Text = $"✅ {modelName}";
+                LlmStatusLabel.Foreground = FindResource("SuccessBrush") as System.Windows.Media.Brush 
+                    ?? System.Windows.Media.Brushes.LightGreen;
+                LoadLlmBtn.IsEnabled = true;
+            }
+            if (line.StartsWith("[LLM_LOAD_FAILED]"))
+            {
+                LlmStatusLabel.Text = "❌ Failed";
+                LlmStatusLabel.Foreground = System.Windows.Media.Brushes.Salmon;
+                LoadLlmBtn.IsEnabled = true;
+            }
+            if (line.StartsWith("[ANALYZE] "))
+            {
+                LlmStatusLabel.Text = line.Trim();
+            }
             if (line.StartsWith("[DETECT]"))
             {
                 AnalysisStatusLabel.Text = line.Trim();
+            }
+            if (line.StartsWith("[DETECT_PROGRESS] "))
+            {
+                AnalysisStatusLabel.Text = $"🔍 Analyzing {line["[DETECT_PROGRESS] ".Length..].Trim()}";
             }
         });
 
@@ -1337,8 +1365,7 @@ public partial class MainWindow : Window
         _silentFiles.Clear();
 
         TranscribeProgress.Value = 0;
-        bool useVad = !(NoVadCheck.IsChecked ?? false);
-        _appSettings.NoVadEnabled = NoVadCheck.IsChecked ?? true;
+        bool useVad = false; // VAD disabled for all use cases
         SaveAppSettings();
         var model = GetSelectedWhisperModel();
         AnalyticsService.TrackEvent("transcribe_all", new { drive_count = dirs.Count, model });
@@ -1357,7 +1384,7 @@ public partial class MainWindow : Window
                 DirectoryBox.Text = dir; // For downstream code that reads DirectoryBox.Text
                 TranscriptFileInfo.MediaDirectory = dir;
 
-                await _runner.RunBatchTranscribeDirAsync(dir, useVad, skipExisting: _appSettings.SkipExistingFiles, model: model);
+                await _runner.RunBatchTranscribeDirAsync(dir, useVad, skipExisting: _appSettings.SkipExistingFiles, model: model, beamSize: GetSelectedBeamSize());
             }
             TranscribeStatusLabel.Text = $"Done — transcribed {dirs.Count} location(s)";
             StatusBar.Text = "Transcription complete";
@@ -1595,8 +1622,8 @@ public partial class MainWindow : Window
                 TranscribeStatusLabel.Text = $"Transcribing with {model}...";
                 StatusBar.Text = $"Transcribing {mf.FileName} with {model}...";
 
-                bool useVad = !(NoVadCheck.IsChecked ?? false);
-                await _runner.RunTranscribeFileAsync(mf.FullPath, model, useVad, skipExisting: false);
+                bool useVad = false; // VAD disabled for all use cases
+                await _runner.RunTranscribeFileAsync(mf.FullPath, model, useVad, skipExisting: false, beamSize: GetSelectedBeamSize());
 
                 // After transcription completes, try loading the new transcript
                 var newPath = GetTranscriptPathForModel(mf.FullPath, model);
@@ -1650,8 +1677,61 @@ public partial class MainWindow : Window
         TranscribeStatusLabel.Text = $"Re-transcribing with {model}...";
         StatusBar.Text = $"Re-transcribing {Path.GetFileName(mediaPath)} with {model}...";
 
-        bool useVad = !(NoVadCheck.IsChecked ?? false);
-        await _runner.RunTranscribeFileAsync(mediaPath, model, useVad, skipExisting: false);
+        bool useVad = false; // VAD disabled for all use cases
+        await _runner.RunTranscribeFileAsync(mediaPath, model, useVad, skipExisting: false, beamSize: GetSelectedBeamSize());
+    }
+
+    private void ModelInfoBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var info = 
+            "MODEL COMPARISON (English Transcription)\n" +
+            "═══════════════════════════════════════\n\n" +
+            "Model          Accuracy    Speed (1hr GPU)    Best For\n" +
+            "─────────────────────────────────────────────────────────\n" +
+            "tiny.en        ★★☆☆☆       ~30 sec            Scanning / voice detection\n" +
+            "base.en        ★★★☆☆       ~1 min             Quick draft transcripts\n" +
+            "small.en       ★★★½☆       ~2 min             Good everyday accuracy\n" +
+            "medium.en      ★★★★☆       ~4 min             High quality English-only\n" +
+            "large-v2       ★★★★★       ~8 min             Best stability, few hallucinations\n" +
+            "large-v3       ★★★★★       ~8 min             Best for accents / multilingual\n" +
+            "turbo          ★★★★½       ~3 min             Best speed/accuracy trade-off\n\n" +
+            "BEAM SIZE\n" +
+            "─────────────────────────────────────────────────────────\n" +
+            "1 (Fast)       Greedy decoding — fastest, fine for tiny/base\n" +
+            "3              Balanced — good for small/medium\n" +
+            "5 (Best)       Most accurate — recommended for large/turbo\n" +
+            "Auto           Picks 1 for tiny/base, 3 for small, 5 for large\n";
+
+        var infoWindow = new Window
+        {
+            Title = "📊 Model & Beam Size Guide",
+            Width = 720,
+            Height = 480,
+            Background = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#0F172A")),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this
+        };
+
+        var textBox = new TextBox
+        {
+            Text = info,
+            IsReadOnly = true,
+            Background = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#0F172A")),
+            Foreground = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E2E8F0")),
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono,Consolas,Courier New"),
+            FontSize = 13,
+            TextWrapping = TextWrapping.NoWrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Padding = new Thickness(16),
+            BorderThickness = new Thickness(0)
+        };
+
+        infoWindow.Content = textBox;
+        infoWindow.Show();
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1824,13 +1904,96 @@ public partial class MainWindow : Window
 
     private void AppendLog(string text)
     {
-        LogBox.AppendText(text + Environment.NewLine);
-        LogBox.ScrollToEnd();
+        try
+        {
+            _logWriter?.WriteLine(text);
+        }
+        catch { }
     }
 
     private void ClearLog()
     {
+        try
+        {
+            _logWriter?.Dispose();
+            File.WriteAllText(_logFilePath, "");
+            _logWriter = new StreamWriter(_logFilePath, append: true) { AutoFlush = true };
+        }
+        catch { }
+        _lastLogPosition = 0;
         LogBox.Clear();
+    }
+
+    private int GetSelectedBeamSize()
+    {
+        if (BeamSizeCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            return int.TryParse(tag, out var v) ? v : 0;
+        return 0; // 0 = auto (Python picks based on model)
+    }
+
+    private void RefreshLogFromFile()
+    {
+        try
+        {
+            if (!File.Exists(_logFilePath)) return;
+            var fi = new FileInfo(_logFilePath);
+            if (fi.Length == _lastLogPosition) return; // no new data
+
+            // Read only new bytes since last position
+            using var fs = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (_lastLogPosition > fi.Length) _lastLogPosition = 0; // file was truncated
+            fs.Seek(_lastLogPosition, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
+            var newContent = reader.ReadToEnd();
+            _lastLogPosition = fi.Length;
+
+            if (!string.IsNullOrEmpty(newContent))
+            {
+                // Cap displayed text at ~200KB to keep UI responsive
+                var currentText = LogBox.Text;
+                var combined = currentText + newContent;
+                if (combined.Length > 200_000)
+                    combined = combined[^200_000..];
+                LogBox.Text = combined;
+                LogBox.ScrollToEnd();
+            }
+        }
+        catch { }
+    }
+
+    private void StartLogRefreshTimer(int intervalSeconds)
+    {
+        _logRefreshTimer?.Stop();
+        if (intervalSeconds <= 0) return;
+        _logRefreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(intervalSeconds)
+        };
+        _logRefreshTimer.Tick += (s, e) => RefreshLogFromFile();
+        _logRefreshTimer.Start();
+    }
+
+    private void LogRefreshCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LogRefreshCombo?.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            if (int.TryParse(tag, out var seconds))
+            {
+                _appSettings.LogRefreshIntervalSeconds = seconds;
+                SaveAppSettings();
+                StartLogRefreshTimer(seconds);
+            }
+        }
+    }
+
+    private void RefreshLogBtn_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshLogFromFile();
+    }
+
+    private void ClearLogBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ClearLog();
     }
     private string _currentSortColumn = "LastModified";
     private ListSortDirection _currentSortDirection = ListSortDirection.Descending;
@@ -2039,14 +2202,18 @@ public partial class MainWindow : Window
         }
 
         FindMeetingsBtn.IsEnabled = false;
+        CancelDetectionBtn.IsEnabled = true;
         AnalysisStatusLabel.Text = "Starting LLM meeting detection...";
         AnalysisOutputBox.Text = "";
+
+        var skipChecked = SkipCheckedFilesCheck.IsChecked == true;
 
         try
         {
             await _runner.RunDetectMeetingsAsync(dir, provider,
                 model: model, apiKey: apiKey, cloudModel: cloudModel,
-                transcriptDir: _runner.TranscriptDirectory);
+                transcriptDir: _runner.TranscriptDirectory,
+                skipChecked: skipChecked);
         }
         catch (Exception ex)
         {
@@ -2056,6 +2223,66 @@ public partial class MainWindow : Window
         finally
         {
             FindMeetingsBtn.IsEnabled = true;
+            CancelDetectionBtn.IsEnabled = false;
+            AnalysisStatusLabel.Text = "Detection complete.";
+        }
+    }
+
+    private void CancelDetectionBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _runner.CancelDetection();
+        CancelDetectionBtn.IsEnabled = false;
+        AnalysisStatusLabel.Text = "Detection cancelled.";
+    }
+
+    private async void ReloadModelBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ReloadModelBtn.IsEnabled = false;
+        AnalysisStatusLabel.Text = "Restarting engine...";
+
+        try
+        {
+            await _runner.StopServerAsync();
+            await _runner.StartServerAsync();
+            AnalysisStatusLabel.Text = "Engine reloaded successfully.";
+        }
+        catch (Exception ex)
+        {
+            AnalysisStatusLabel.Text = $"Error reloading: {ex.Message}";
+        }
+        finally
+        {
+            ReloadModelBtn.IsEnabled = true;
+        }
+    }
+
+    private async void LoadLlmBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var provider = (LlmProviderCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "local";
+        if (provider != "local")
+        {
+            LlmStatusLabel.Text = "Cloud providers don't need pre-loading";
+            return;
+        }
+
+        var model = (LocalModelCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        LoadLlmBtn.IsEnabled = false;
+        LlmStatusLabel.Text = "⏳ Loading model...";
+        LlmStatusLabel.Foreground = FindResource("TextDimBrush") as System.Windows.Media.Brush 
+            ?? System.Windows.Media.Brushes.Gray;
+
+        try
+        {
+            await _runner.RunLoadLlmAsync(model: model);
+        }
+        catch (Exception ex)
+        {
+            LlmStatusLabel.Text = $"❌ {ex.Message}";
+            LlmStatusLabel.Foreground = System.Windows.Media.Brushes.Salmon;
+        }
+        finally
+        {
+            LoadLlmBtn.IsEnabled = true;
         }
     }
 

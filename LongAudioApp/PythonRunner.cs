@@ -13,6 +13,7 @@ public class PythonRunner : IDisposable
     private readonly string _pythonPath;
     private Process? _currentProcess;
     private Process? _serverProcess; // Persistent engine process
+    private Process? _detectProcess; // Detect meetings process (independent, cancellable)
     private CancellationTokenSource? _cts;
     private readonly SemaphoreSlim _serverLock = new(1, 1);
 
@@ -276,16 +277,16 @@ public class PythonRunner : IDisposable
         }
     }
 
-    public async Task RunBatchTranscribeAsync(string model, string? reportPath = null, bool skipExisting = false)
+    public async Task RunBatchTranscribeAsync(string model, string? reportPath = null, bool skipExisting = false, int beamSize = 5)
     {
         // Server mode not implemented for this action yet
-        var cmdArgs = $"--output-dir \"{TranscriptDirectory}\" --model {model}";
+        var cmdArgs = $"--output-dir \"{TranscriptDirectory}\" --model {model} --beam-size {beamSize}";
         if (reportPath != null) cmdArgs += $" --report \"{reportPath}\"";
         if (skipExisting) cmdArgs += " --skip-existing";
         await RunProcessAsync(BuildArgs("batch_transcribe", cmdArgs));
     }
 
-    public async Task RunBatchTranscribeDirAsync(string directory, bool useVad, bool skipExisting, string model = "large-v1")
+    public async Task RunBatchTranscribeDirAsync(string directory, bool useVad, bool skipExisting, string model = "large-v1", int beamSize = 5)
     {
         var safeDir = directory.TrimEnd('\\', '/');
         if (safeDir.EndsWith("\\")) safeDir = safeDir.TrimEnd('\\');
@@ -294,7 +295,7 @@ public class PythonRunner : IDisposable
         // Checked fast_engine.py, I haven't added "batch_transcribe_dir" to server mode.
         // So fallback to legacy always.
         
-        var cmdArgs = $"--dir \"{safeDir}\" --output-dir \"{TranscriptDirectory}\" --model {model}";
+        var cmdArgs = $"--dir \"{safeDir}\" --output-dir \"{TranscriptDirectory}\" --model {model} --beam-size {beamSize}";
         if (!useVad) cmdArgs += " --no-vad";
         if (skipExisting) cmdArgs += " --skip-existing";
         await RunProcessAsync(BuildArgs("batch_transcribe_dir", cmdArgs));
@@ -320,11 +321,11 @@ public class PythonRunner : IDisposable
         }
     }
 
-    public async Task RunTranscribeFileAsync(string file, string model, bool useVad, bool skipExisting)
+    public async Task RunTranscribeFileAsync(string file, string model, bool useVad, bool skipExisting, int beamSize = 5)
     {
          // "transcribe_file" mode also not added to server loop yet.
          // Fallback to legacy.
-        var cmdArgs = $"\"{file}\" --model {model} --output-dir \"{TranscriptDirectory}\"";
+        var cmdArgs = $"\"{file}\" --model {model} --output-dir \"{TranscriptDirectory}\" --beam-size {beamSize}";
         if (!useVad) cmdArgs += " --no-vad";
         if (skipExisting) cmdArgs += " --skip-existing";
         await RunProcessAsync(BuildArgs("transcribe_file", cmdArgs));
@@ -448,7 +449,7 @@ public class PythonRunner : IDisposable
     }
 
     public async Task RunDetectMeetingsAsync(string directory, string provider,
-        string? model = null, string? apiKey = null, string? cloudModel = null, string? transcriptDir = null)
+        string? model = null, string? apiKey = null, string? cloudModel = null, string? transcriptDir = null, bool skipChecked = false)
     {
         // Run detection in its own independent process so it works even while transcription is running
         var safeDir = directory.TrimEnd('\\', '/');
@@ -457,7 +458,63 @@ public class PythonRunner : IDisposable
         if (!string.IsNullOrEmpty(apiKey)) cmdArgs += $" --api-key \"{apiKey}\"";
         if (!string.IsNullOrEmpty(cloudModel)) cmdArgs += $" --cloud-model \"{cloudModel}\"";
         if (!string.IsNullOrEmpty(transcriptDir)) cmdArgs += $" --transcript-dir \"{transcriptDir}\"";
+        if (skipChecked) cmdArgs += " --skip-checked";
         var arguments = BuildArgs("detect_meetings", cmdArgs);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _pythonPath,
+            Arguments = arguments,
+            WorkingDirectory = Path.GetDirectoryName(_scriptPath),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8
+        };
+        psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+        var pyDir = Path.GetDirectoryName(_pythonPath);
+        if (!string.IsNullOrEmpty(pyDir))
+        {
+            var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            psi.EnvironmentVariables["PATH"] = pyDir + ";" + envPath;
+        }
+
+        _detectProcess = new Process { StartInfo = psi };
+        var proc = _detectProcess;
+        proc.Start();
+
+        var stdoutTask = Task.Run(async () =>
+        {
+            while (true)
+            {
+                var line = await proc.StandardOutput.ReadLineAsync();
+                if (line == null) break;
+                OutputReceived?.Invoke(line);
+            }
+        });
+        var stderrTask = Task.Run(async () =>
+        {
+            while (true)
+            {
+                var line = await proc.StandardError.ReadLineAsync();
+                if (line == null) break;
+                OutputReceived?.Invoke(line);
+            }
+        });
+
+        await Task.WhenAll(stdoutTask, stderrTask);
+        await proc.WaitForExitAsync();
+        _detectProcess = null;
+        proc.Dispose();
+    }
+
+    public async Task RunLoadLlmAsync(string? model = null)
+    {
+        var cmdArgs = "";
+        if (!string.IsNullOrEmpty(model)) cmdArgs += $" --model {model}";
+        var arguments = BuildArgs("load_llm", cmdArgs);
 
         var psi = new ProcessStartInfo
         {
@@ -630,6 +687,19 @@ public class PythonRunner : IDisposable
             if (_currentProcess != null && !_currentProcess.HasExited)
             {
                 _currentProcess.Kill(entireProcessTree: true);
+            }
+        }
+        catch { }
+    }
+
+    public void CancelDetection()
+    {
+        try
+        {
+            if (_detectProcess != null && !_detectProcess.HasExited)
+            {
+                _detectProcess.Kill(entireProcessTree: true);
+                OutputReceived?.Invoke("[CANCELLED] Meeting detection was cancelled.");
             }
         }
         catch { }
